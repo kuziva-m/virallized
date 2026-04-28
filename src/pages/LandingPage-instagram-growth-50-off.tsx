@@ -41,6 +41,7 @@ const LandingPage = () => {
       a: "No. Virallized never posts content, comments, or sends DMs on your behalf. Your content, voice, and interactions remain 100% yours — we simply help the right people discover your account organically.",
     },
   ];
+
   // Auto-scroll logic for the reviews carousel
   useEffect(() => {
     const timer = setInterval(() => {
@@ -49,6 +50,28 @@ const LandingPage = () => {
 
     // Clear the interval if the user leaves the page
     return () => clearInterval(timer);
+  }, []);
+
+  // 🚨 REWARDFUL AFFILIATE TRACKING INJECTION 🚨
+  useEffect(() => {
+    // 1. Initialize the Rewardful queue
+    (window as any)._rwq = "rewardful";
+    (window as any).rewardful =
+      (window as any).rewardful ||
+      function () {
+        ((window as any).rewardful.q = (window as any).rewardful.q || []).push(
+          arguments,
+        );
+      };
+
+    // 2. Inject the script if it doesn't already exist
+    if (!document.querySelector("script[data-rewardful]")) {
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://r.wdfl.co/rw.js";
+      script.setAttribute("data-rewardful", "da4581"); // PUBLIC API KEY ONLY
+      document.head.appendChild(script);
+    }
   }, []);
 
   return (
@@ -66,11 +89,21 @@ const LandingPage = () => {
             />
           </div>
         </div>
-
+        {/* PROMO BANNER */}
+        <div className="bg-[#f80d5d] text-white py-2.5 px-4 text-center text-[11px] md:text-[13px] font-bold tracking-wide relative z-50 shadow-sm">
+          🎉 New to Virallized? Get 50% Off Your First Month With Code "50OFF" |{" "}
+          <a
+            href="#pricing"
+            className="underline underline-offset-2 hover:text-[#ffefe9] transition-colors"
+          >
+            Get Discount
+          </a>{" "}
+          🎉
+        </div>
         {/* NAVBAR */}
         <nav className="container mx-auto px-6 lg:px-20 xl:px-24 py-4 flex justify-between items-center max-w-[90rem] relative z-50 shrink-0">
           <div className="flex items-center gap-10">
-            {/* LOGO CONTAINER */}
+            {/* LOGO CONTAINER - REDUCED BY ANOTHER EXACT 10% */}
             <Link to="/" className="w-[108px] md:w-[122px] lg:w-[135px]">
               <img
                 src="/images/logos/virallized-main-logo.svg"
@@ -78,8 +111,7 @@ const LandingPage = () => {
                 className="w-full h-auto"
               />
             </Link>
-            {/* NAVIGATION LINKS - FONT INCREASED ~30% */}
-            <div className="hidden md:flex gap-6 font-medium text-slate-600 text-[13px] lg:text-[14.5px]">
+            <div className="hidden md:flex gap-6 font-medium text-slate-600 text-[10px] lg:text-[11px]">
               <a
                 href="#how-it-works"
                 className="hover:text-blue-600 transition"
@@ -98,19 +130,19 @@ const LandingPage = () => {
             </div>
           </div>
 
-          {/* DESKTOP CTA BUTTON - FONT INCREASED ~30% */}
+          {/* DESKTOP CTA BUTTON */}
           <div className="hidden md:block">
             {window.location.pathname === "/" ? (
               <a
                 href="#pricing"
-                className="bg-gradient-to-r from-[#ffae07] from-[0%] via-[#ff2429] via-[25%] to-[#f1078d] to-[85%] text-white px-5 py-2.5 lg:px-6 lg:py-3 rounded-xl font-bold text-[13px] lg:text-[14.5px] hover:opacity-90 transition-opacity shadow-md"
+                className="bg-gradient-to-r from-[#ffae07] from-[0%] via-[#ff2429] via-[25%] to-[#f1078d] to-[85%] text-white px-4 py-2 lg:px-5 lg:py-2.5 rounded-xl font-bold text-[10px] lg:text-[11px] hover:opacity-90 transition-opacity shadow-md"
               >
                 Start My Growth
               </a>
             ) : (
               <Link
                 to="/#pricing"
-                className="bg-gradient-to-r from-[#ffae07] from-[0%] via-[#ff2429] via-[25%] to-[#f1078d] to-[85%] text-white px-5 py-2.5 lg:px-6 lg:py-3 rounded-xl font-bold text-[13px] lg:text-[14.5px] hover:opacity-90 transition-opacity shadow-md"
+                className="bg-gradient-to-r from-[#ffae07] from-[0%] via-[#ff2429] via-[25%] to-[#f1078d] to-[85%] text-white px-4 py-2 lg:px-5 lg:py-2.5 rounded-xl font-bold text-[10px] lg:text-[11px] hover:opacity-90 transition-opacity shadow-md"
               >
                 Start My Growth
               </Link>
@@ -1414,6 +1446,7 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
       {/* FOOTER CTA */}
       <section className="bg-[#fff1f2] py-16 lg:py-24 relative overflow-hidden">
         {/* Background Decorative Blobs */}
@@ -1549,7 +1582,6 @@ const LandingPage = () => {
               <div className="font-bold text-slate-900 text-[11px] lg:text-sm tracking-wider uppercase mb-1 lg:mb-2">
                 Legal
               </div>
-              {/* Upgraded to React Router <Link> for instant loading! */}
               <Link
                 to="/terms-of-service"
                 className="text-[13px] lg:text-sm font-medium hover:text-blue-600 transition"
