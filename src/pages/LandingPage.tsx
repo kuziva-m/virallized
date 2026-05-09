@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
+import SEO from "../components/SEO";
 
 const LandingPage = () => {
   const [isAnnual, setIsAnnual] = useState(false);
@@ -54,38 +54,56 @@ const LandingPage = () => {
 
   return (
     <>
-      <Helmet>
-        <title>
-          Grow Instagram Followers with Virallized Organic Instagram Growth
-          Services
-        </title>
-        <meta
-          name="description"
-          content="Grow your Instagram with Virallized organic Instagram growth services. Get real, targeted followers through safe, organic Instagram promotion without bots or fake followers."
-        />
-        <link rel="canonical" href="https://virallized.com/" />
-
-        <meta property="og:type" content="website" />
-        <meta
-          property="og:title"
-          content="Grow Instagram Followers with Virallized Organic Instagram Growth Services"
-        />
-        <meta
-          property="og:description"
-          content="Get real and targeted Instagram followers with Virallized organic Instagram growth services. No bots, no fake followers, just real audience growth."
-        />
-        <meta property="og:url" content="https://virallized.com/" />
-
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta
-          name="twitter:title"
-          content="Grow Instagram Followers with Virallized Organic Instagram Growth Services"
-        />
-        <meta
-          name="twitter:description"
-          content="Get real and targeted Instagram followers with Virallized organic Instagram growth services. No bots, no fake followers, just real audience growth."
-        />
-      </Helmet>
+      <SEO
+        title="Grow Instagram Followers with Virallized Organic Instagram Growth Services"
+        description="Grow your Instagram with Virallized organic Instagram growth services. Get real, targeted followers through safe, organic Instagram promotion without bots or fake followers."
+        path="/"
+        structuredData={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "Virallized",
+            url: "https://www.virallized.com",
+            logo: "https://www.virallized.com/images/logos/virallized-main-logo.svg",
+            description:
+              "Virallized is an organic Instagram growth service that helps creators, businesses, brands, and personal accounts reach real targeted followers.",
+            foundingDate: "2018",
+            contactPoint: {
+              "@type": "ContactPoint",
+              contactType: "customer support",
+              email: "support@virallized.com",
+            },
+            address: {
+              "@type": "PostalAddress",
+              addressLocality: "Melbourne",
+              addressCountry: "Australia",
+            },
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Service",
+            name: "Organic Instagram Growth Services",
+            serviceType: "Instagram Growth Service",
+            provider: {
+              "@type": "Organization",
+              name: "Virallized",
+              url: "https://www.virallized.com",
+            },
+            areaServed: {
+              "@type": "Place",
+              name: "Worldwide",
+            },
+            description:
+              "Organic Instagram follower growth through safe targeting, profile promotion, and real audience discovery without bots or fake followers.",
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "Virallized",
+            url: "https://www.virallized.com",
+          },
+        ]}
+      />
 
       <div className="min-h-screen bg-white font-sans text-slate-800 selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
         {/* 100VH HEADER & HERO WRAPPER */}
