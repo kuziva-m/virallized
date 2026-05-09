@@ -59,9 +59,13 @@ const AdminDashboard = () => {
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [clientForm, setClientForm] = useState<Partial<Client>>({});
   const [isSavingClient, setIsSavingClient] = useState(false);
+
+  // Email Loading States
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSending2FAEmail, setIsSending2FAEmail] = useState(false);
   const [isSendingSetupEmail, setIsSendingSetupEmail] = useState(false);
+  const [isSendingVerifyLoginEmail, setIsSendingVerifyLoginEmail] =
+    useState(false);
 
   // Gorgeous Modal States
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -240,6 +244,7 @@ const AdminDashboard = () => {
       await supabase.functions.invoke("send-email", {
         body: {
           to: selectedClient.email,
+          reply_to: "support@virallized.com",
           subject: "Action Required: Reconnect your Virallized Account",
           html: emailHtml,
         },
@@ -299,6 +304,7 @@ const AdminDashboard = () => {
       await supabase.functions.invoke("send-email", {
         body: {
           to: selectedClient.email,
+          reply_to: "support@virallized.com",
           subject: "Action Required: 2FA Backup Code Needed",
           html: emailHtml,
         },
@@ -310,6 +316,62 @@ const AdminDashboard = () => {
       alert("Failed to send email. Please check the console or try again.");
     } finally {
       setIsSending2FAEmail(false);
+    }
+  };
+
+  const sendVerifyLoginEmail = async () => {
+    if (!selectedClient) return;
+
+    const confirmSend = window.confirm(
+      `Send 'Verify Login Attempt (This Was Me)' email to ${selectedClient.email}?`,
+    );
+
+    if (!confirmSend) return;
+
+    setIsSendingVerifyLoginEmail(true);
+
+    const emailHtml = `
+      <div style="font-family: sans-serif; padding: 30px; border: 1px solid #eaeaea; border-radius: 12px; max-width: 600px; margin: 0 auto; color: #1e293b;">
+        <h2 style="color: #f80d5d; margin-top: 0; font-size: 24px;">Action Required: Verify Login Attempt</h2>
+        
+        <p style="font-size: 16px; line-height: 1.6;">Hi ${getFirstName(selectedClient.full_name)},</p>
+        
+        <p style="font-size: 16px; line-height: 1.6;">
+          Our team is currently attempting to securely connect to your Instagram account to start your growth campaign. However, Instagram has blocked the login attempt as a standard security precaution.
+        </p>
+        
+        <p style="font-size: 16px; line-height: 1.6;">
+          To allow us access, please follow these quick steps:
+        </p>
+
+        <ol style="font-size: 16px; line-height: 1.6; padding-left: 20px;">
+          <li style="margin-bottom: 10px;">Open the <strong>Instagram app</strong> on your phone.</li>
+          <li style="margin-bottom: 10px;">You should see a pop-up saying "We noticed a new login from a device you don't usually use."</li>
+          <li style="margin-bottom: 10px;">Tap <strong>"This Was Me"</strong>.</li>
+        </ol>
+
+        <p style="font-size: 16px; line-height: 1.6; background-color: #ffefe9; padding: 15px; border-radius: 8px; border-left: 4px solid #f80d5d;">
+          <strong>Once you have clicked "This Was Me", please reply directly to this email (or message <a href="mailto:support@virallized.com" style="color: #f80d5d; text-decoration: none;">support@virallized.com</a>) to let us know</strong> so our team can immediately finish the connection and start your growth!
+        </p>
+      </div>
+    `;
+
+    try {
+      await supabase.functions.invoke("send-email", {
+        body: {
+          to: selectedClient.email,
+          reply_to: "support@virallized.com",
+          subject: "Action Required: Verify Instagram Login Attempt",
+          html: emailHtml,
+        },
+      });
+
+      alert(`Success! Verify Login email sent to ${selectedClient.email}`);
+    } catch (error) {
+      console.error("Failed to send email:", error);
+      alert("Failed to send email. Please check the console or try again.");
+    } finally {
+      setIsSendingVerifyLoginEmail(false);
     }
   };
 
@@ -366,6 +428,7 @@ const AdminDashboard = () => {
       await supabase.functions.invoke("send-email", {
         body: {
           to: selectedClient.email,
+          reply_to: "support@virallized.com",
           subject: "Your Virallized Setup Is Complete",
           html: emailHtml,
         },
@@ -1159,6 +1222,16 @@ const AdminDashboard = () => {
                       {isSending2FAEmail
                         ? "Sending..."
                         : "Send '2FA Required' Email"}
+                    </button>
+
+                    <button
+                      onClick={sendVerifyLoginEmail}
+                      disabled={isSendingVerifyLoginEmail}
+                      className="w-full bg-purple-50 hover:bg-purple-100 text-purple-600 font-bold py-3.5 rounded-xl transition-colors border border-purple-200 text-[13px] shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isSendingVerifyLoginEmail
+                        ? "Sending..."
+                        : "Send 'Verify Login / This Was Me' Email"}
                     </button>
                   </div>
                 </div>

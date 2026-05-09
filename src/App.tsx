@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // Pages
@@ -25,6 +26,28 @@ import Off50 from "./pages/LandingPage-50-off";
 import BlogAdmin from "./pages/BlogAdmin";
 
 function App() {
+  // 🚨 GLOBAL REWARDFUL TRACKER 🚨
+  useEffect(() => {
+    // 1. Initialize the Rewardful queue
+    (window as any)._rwq = "rewardful";
+    (window as any).rewardful =
+      (window as any).rewardful ||
+      function () {
+        ((window as any).rewardful.q = (window as any).rewardful.q || []).push(
+          arguments,
+        );
+      };
+
+    // 2. Inject the script if it doesn't already exist
+    if (!document.querySelector("script[data-rewardful]")) {
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://r.wdfl.co/rw.js";
+      script.setAttribute("data-rewardful", "da4581"); // Your public API key
+      document.head.appendChild(script);
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>

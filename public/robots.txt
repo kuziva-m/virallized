@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+# Block app, admin, and onboarding flows from search engines
+Disallow: /login
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /admin
+Disallow: /blog-admin
+Disallow: /set-up
+Disallow: /set-up-199
+Disallow: /set-up-pro
+Disallow: /set-up-299
+Disallow: /update-targeting
+Disallow: /whitelist
+Disallow: /add-2fa
+
+# Tell search engines where the sitemap is located
+Sitemap: https://www.virallized.com/sitemap.xml

@@ -30,9 +30,48 @@ const Dashboard = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
+  // 🚨 NEW: 3-STRIKES LIMIT STATES 🚨
+  const [updatesRemaining, setUpdatesRemaining] = useState(3);
+  const [isLocked, setIsLocked] = useState(false);
+
   useEffect(() => {
     fetchDashboardData();
+    checkLimits(); // Run limit check on load
   }, []);
+
+  // 🚨 NEW: LIMIT ENGINE 🚨
+  const checkLimits = () => {
+    const stored = localStorage.getItem("virallized_target_updates") || "[]";
+    let timestamps: number[] = [];
+    try {
+      timestamps = JSON.parse(stored);
+    } catch (e) {}
+
+    const now = Date.now();
+    const last24h = timestamps.filter(
+      (ts: number) => now - ts < 24 * 60 * 60 * 1000,
+    );
+
+    localStorage.setItem("virallized_target_updates", JSON.stringify(last24h));
+
+    const remaining = Math.max(0, 3 - last24h.length);
+    setUpdatesRemaining(remaining);
+    setIsLocked(remaining === 0);
+  };
+
+  const recordUpdate = () => {
+    const stored = localStorage.getItem("virallized_target_updates") || "[]";
+    let timestamps: number[] = [];
+    try {
+      timestamps = JSON.parse(stored);
+    } catch (e) {}
+    timestamps.push(Date.now());
+    localStorage.setItem(
+      "virallized_target_updates",
+      JSON.stringify(timestamps),
+    );
+    checkLimits();
+  };
 
   const fetchDashboardData = async () => {
     const {
@@ -80,6 +119,8 @@ const Dashboard = () => {
     e: React.FormEvent,
   ) => {
     e.preventDefault();
+    if (isLocked) return;
+
     setIsUpdating(true);
 
     const inputValue = field === "targets" ? newTarget : newWhitelist;
@@ -132,6 +173,8 @@ const Dashboard = () => {
     field: "targets" | "whitelist",
     itemToRemove: string,
   ) => {
+    if (isLocked) return;
+
     setIsUpdating(true);
     const currentItems = profile[field]
       .split(",")
@@ -215,6 +258,7 @@ const Dashboard = () => {
       );
 
       setHasUnsavedChanges(false);
+      recordUpdate(); // 🚨 LOG THE STRIKE
       alert("Changes have been permanently saved to your strategy.");
     } catch (err) {
       console.error("Failed to send email alert", err);
@@ -542,19 +586,37 @@ const Dashboard = () => {
               <h2 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">
                 Target Configuration
               </h2>
+
+              {/* 🚨 THE LIMIT NOTIFICATION BANNER 🚨 */}
+              <div
+                className={`mb-8 p-4 rounded-2xl border text-sm font-bold flex items-center gap-3 ${
+                  isLocked
+                    ? "bg-red-50 text-red-600 border-red-200"
+                    : "bg-blue-50 text-blue-600 border-blue-200"
+                }`}
+              >
+                <div className="text-xl">{isLocked ? "🔒" : "💡"}</div>
+                <div>
+                  {isLocked
+                    ? "Daily optimization limit reached to protect account safety. Please try again tomorrow."
+                    : `You have ${updatesRemaining} target update${updatesRemaining !== 1 ? "s" : ""} remaining today.`}
+                </div>
+              </div>
+
               <form
                 onSubmit={(e) => handleAddItem("targets", e)}
                 className="flex flex-col sm:flex-row gap-3 mb-8 bg-slate-50 p-2 rounded-2xl border border-slate-200"
               >
                 <input
                   value={newTarget}
+                  disabled={isLocked}
                   onChange={(e) => setNewTarget(e.target.value)}
                   placeholder="Enter @competitor handle"
-                  className="flex-1 px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-[#f80d5d] focus:ring-1 focus:ring-[#f80d5d] text-sm font-medium"
+                  className={`flex-1 px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-[#f80d5d] focus:ring-1 focus:ring-[#f80d5d] text-sm font-medium ${isLocked ? "opacity-50 cursor-not-allowed bg-slate-100" : ""}`}
                 />
                 <button
                   type="submit"
-                  disabled={isUpdating || !newTarget.trim()}
+                  disabled={isUpdating || !newTarget.trim() || isLocked}
                   className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add
@@ -584,7 +646,8 @@ const Dashboard = () => {
                       </div>
                       <button
                         onClick={() => handleRemoveItem("targets", target.raw)}
-                        className="text-slate-400 hover:text-red-500 transition-colors text-2xl leading-none px-2"
+                        disabled={isLocked}
+                        className="text-slate-400 hover:text-red-500 transition-colors text-2xl leading-none px-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Remove Target"
                       >
                         ×
@@ -603,8 +666,8 @@ const Dashboard = () => {
                 </div>
                 <button
                   onClick={handleBulkEmailUpdate}
-                  disabled={isSendingEmail}
-                  className="bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white px-8 py-3 rounded-xl font-black text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                  disabled={isSendingEmail || isLocked}
+                  className="bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white px-8 py-3 rounded-xl font-black text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSendingEmail ? "Saving..." : "Save Changes"}
                 </button>
@@ -637,19 +700,37 @@ const Dashboard = () => {
               <h2 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">
                 Whitelist Configuration
               </h2>
+
+              {/* 🚨 THE LIMIT NOTIFICATION BANNER 🚨 */}
+              <div
+                className={`mb-8 p-4 rounded-2xl border text-sm font-bold flex items-center gap-3 ${
+                  isLocked
+                    ? "bg-red-50 text-red-600 border-red-200"
+                    : "bg-blue-50 text-blue-600 border-blue-200"
+                }`}
+              >
+                <div className="text-xl">{isLocked ? "🔒" : "💡"}</div>
+                <div>
+                  {isLocked
+                    ? "Daily optimization limit reached to protect account safety. Please try again tomorrow."
+                    : `You have ${updatesRemaining} target update${updatesRemaining !== 1 ? "s" : ""} remaining today.`}
+                </div>
+              </div>
+
               <form
                 onSubmit={(e) => handleAddItem("whitelist", e)}
                 className="flex flex-col sm:flex-row gap-3 mb-8 bg-slate-50 p-2 rounded-2xl border border-slate-200"
               >
                 <input
                   value={newWhitelist}
+                  disabled={isLocked}
                   onChange={(e) => setNewWhitelist(e.target.value)}
                   placeholder="Enter @handle to protect"
-                  className="flex-1 px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-[#ffae07] focus:ring-1 focus:ring-[#ffae07] text-sm font-medium"
+                  className={`flex-1 px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-[#ffae07] focus:ring-1 focus:ring-[#ffae07] text-sm font-medium ${isLocked ? "opacity-50 cursor-not-allowed bg-slate-100" : ""}`}
                 />
                 <button
                   type="submit"
-                  disabled={isUpdating || !newWhitelist.trim()}
+                  disabled={isUpdating || !newWhitelist.trim() || isLocked}
                   className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Protect
@@ -677,7 +758,8 @@ const Dashboard = () => {
                       </span>
                       <button
                         onClick={() => handleRemoveItem("whitelist", wl)}
-                        className="text-slate-400 hover:text-red-500 transition-colors text-2xl leading-none px-2"
+                        disabled={isLocked}
+                        className="text-slate-400 hover:text-red-500 transition-colors text-2xl leading-none px-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Remove Protection"
                       >
                         ×
@@ -697,8 +779,8 @@ const Dashboard = () => {
                 </div>
                 <button
                   onClick={handleBulkEmailUpdate}
-                  disabled={isSendingEmail}
-                  className="bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white px-8 py-3 rounded-xl font-black text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                  disabled={isSendingEmail || isLocked}
+                  className="bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white px-8 py-3 rounded-xl font-black text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSendingEmail ? "Saving..." : "Save Changes"}
                 </button>

@@ -41,13 +41,13 @@ const LandingPage = () => {
       a: "No. Virallized never posts content, comments, or sends DMs on your behalf. Your content, voice, and interactions remain 100% yours — we simply help the right people discover your account organically.",
     },
   ];
+
   // Auto-scroll logic for the reviews carousel
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentReview((prev) => (prev < 5 ? prev + 1 : 0));
-    }, 5000); // 5000ms = 5 seconds per slide. Adjust as needed!
+    }, 5000);
 
-    // Clear the interval if the user leaves the page
     return () => clearInterval(timer);
   }, []);
 
@@ -78,7 +78,7 @@ const LandingPage = () => {
                 className="w-full h-auto"
               />
             </Link>
-            {/* NAVIGATION LINKS - FONT INCREASED ~30% */}
+            {/* NAVIGATION LINKS */}
             <div className="hidden md:flex gap-6 font-medium text-slate-600 text-[13px] lg:text-[14.5px]">
               <a
                 href="#how-it-works"
@@ -98,7 +98,7 @@ const LandingPage = () => {
             </div>
           </div>
 
-          {/* DESKTOP CTA BUTTON - FONT INCREASED ~30% */}
+          {/* DESKTOP CTA BUTTON */}
           <div className="hidden md:block">
             {window.location.pathname === "/" ? (
               <a
@@ -203,7 +203,7 @@ const LandingPage = () => {
         {/* HERO SECTION */}
         <header className="flex-1 container mx-auto px-0 lg:px-20 xl:px-24 flex flex-col justify-center max-w-[90rem] relative z-10 py-12 lg:py-10">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-10">
-            {/* TEXT CONTAINER - PERFECTLY VERTICALLY CENTERED BY FLEXBOX */}
+            {/* TEXT CONTAINER */}
             <div className="flex-1 text-center lg:text-left w-full lg:max-w-[460px] xl:max-w-[500px] mx-auto lg:mx-0 lg:translate-x-[10%]">
               {/* Account Managers Online Badge */}
               <div className="inline-flex items-center gap-2.5 bg-white px-4 py-2 lg:px-4 lg:py-2 rounded-full border border-slate-200 mb-6 lg:mb-5 shadow-sm relative mx-auto lg:mx-0">
@@ -220,13 +220,11 @@ const LandingPage = () => {
 
               {/* Main Heading */}
               <h1 className="text-[2.6rem] md:text-5xl lg:text-[2.65rem] xl:text-[3rem] font-extrabold text-slate-900 leading-[1.15] mb-6 lg:mb-5 tracking-tight w-[90%] mx-auto lg:w-full lg:mx-0">
-                Get{" "}
+                Grow Instagram Followers with{" "}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d]">
-                  Real
-                </span>
-                , Organic
-                <br />
-                Instagram Followers
+                  Virallized
+                </span>{" "}
+                Organic Instagram Growth Services
               </h1>
 
               {/* Subheading */}
@@ -431,7 +429,6 @@ const LandingPage = () => {
                   text: "I am so grateful to have found Virallized and their services! They helped me grow my account steadily and safely, and I felt comfortable trusting the process all the way through. I am excited for our future! Highly recommend.",
                 },
               ].map((review, i) => (
-                // This wrapper uses 'flex items-center' to vertically center the card, allowing the card itself to shrink to fit the text!
                 <div
                   key={i}
                   className="w-full h-full flex-shrink-0 px-2 lg:px-4 flex items-center justify-center"
@@ -1414,8 +1411,9 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
       {/* FOOTER CTA */}
-      <section className="bg-[#fff1f2] py-16 lg:py-24 relative overflow-hidden">
+      <section className="bg-[#fff1f2] py-16 lg:py-24 relative overflow-hidden border-t border-[#f80d5d]/10">
         {/* Background Decorative Blobs */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#fda6e1] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#ffefe9] rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
@@ -1549,7 +1547,6 @@ const LandingPage = () => {
               <div className="font-bold text-slate-900 text-[11px] lg:text-sm tracking-wider uppercase mb-1 lg:mb-2">
                 Legal
               </div>
-              {/* Upgraded to React Router <Link> for instant loading! */}
               <Link
                 to="/terms-of-service"
                 className="text-[13px] lg:text-sm font-medium hover:text-blue-600 transition"

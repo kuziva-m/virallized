@@ -162,7 +162,9 @@ const Setup = () => {
     "/set-up-max-annual": "MAX Annual",
   };
 
-  const clientPlan = planMap[location.pathname] || "Unknown Plan";
+  // 🚨 FIXED: Force lowercase and strip trailing slashes to prevent mapping errors
+  const cleanPath = location.pathname.toLowerCase().replace(/\/$/, "");
+  const clientPlan = planMap[cleanPath] || "Unknown Plan";
 
   const toggleFaq = (index: number) => {
     setActiveFaq(activeFaq === index ? null : index);

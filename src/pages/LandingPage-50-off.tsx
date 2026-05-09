@@ -7,6 +7,9 @@ const LandingPage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentReview, setCurrentReview] = useState(0);
 
+  // 🚨 NEW: State to hold the affiliate referral ID
+  const [referralId, setReferralId] = useState("");
+
   const toggleFaq = (index: number) => {
     setActiveFaq(activeFaq === index ? null : index);
   };
@@ -52,7 +55,7 @@ const LandingPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // 🚨 REWARDFUL AFFILIATE TRACKING INJECTION 🚨
+  // 🚨 REWARDFUL AFFILIATE TRACKING INJECTION & CAPTURE 🚨
   useEffect(() => {
     // 1. Initialize the Rewardful queue
     (window as any)._rwq = "rewardful";
@@ -72,7 +75,30 @@ const LandingPage = () => {
       script.setAttribute("data-rewardful", "da4581"); // PUBLIC API KEY ONLY
       document.head.appendChild(script);
     }
+
+    // 3. Capture the referral ID once Rewardful is ready
+    const captureReferral = () => {
+      if ((window as any).Rewardful && (window as any).Rewardful.referral) {
+        setReferralId((window as any).Rewardful.referral);
+      }
+    };
+
+    // Try capturing immediately
+    captureReferral();
+    // Also listen for the official ready event
+    document.addEventListener("rewardful.ready", captureReferral);
+
+    return () => {
+      document.removeEventListener("rewardful.ready", captureReferral);
+    };
   }, []);
+
+  // 🚨 HELPER FUNCTION: Attaches the referral ID to Stripe links 🚨
+  const getStripeUrl = (baseUrl: string) => {
+    return referralId
+      ? `${baseUrl}?client_reference_id=${referralId}`
+      : baseUrl;
+  };
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-800 selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
@@ -463,7 +489,6 @@ const LandingPage = () => {
                   text: "I am so grateful to have found Virallized and their services! They helped me grow my account steadily and safely, and I felt comfortable trusting the process all the way through. I am excited for our future! Highly recommend.",
                 },
               ].map((review, i) => (
-                // This wrapper uses 'flex items-center' to vertically center the card, allowing the card itself to shrink to fit the text!
                 <div
                   key={i}
                   className="w-full h-full flex-shrink-0 px-2 lg:px-4 flex items-center justify-center"
@@ -955,8 +980,8 @@ const LandingPage = () => {
               <a
                 href={
                   isAnnual
-                    ? "https://buy.stripe.com/aEU5mc9yV6ZDgZq00g"
-                    : "https://buy.stripe.com/9AQbKAaCZ6ZD4cE3cr"
+                    ? getStripeUrl("https://buy.stripe.com/aEU5mc9yV6ZDgZq00g")
+                    : getStripeUrl("https://buy.stripe.com/9AQbKAaCZ6ZD4cE3cr")
                 }
                 className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200"
               >
@@ -1028,8 +1053,8 @@ const LandingPage = () => {
               <a
                 href={
                   isAnnual
-                    ? "https://buy.stripe.com/7sI3e48uR1Fj10s14b"
-                    : "https://buy.stripe.com/6oE7uk7qN1Fj7oQ28d"
+                    ? getStripeUrl("https://buy.stripe.com/7sI3e48uR1Fj10s14b")
+                    : getStripeUrl("https://buy.stripe.com/6oE7uk7qN1Fj7oQ28d")
                 }
                 className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200"
               >
@@ -1109,8 +1134,8 @@ const LandingPage = () => {
               <a
                 href={
                   isAnnual
-                    ? "https://buy.stripe.com/28odSIh1n1Fj8sUfZ6"
-                    : "https://buy.stripe.com/6oE7uk5iFdo14cEfYY"
+                    ? getStripeUrl("https://buy.stripe.com/28odSIh1n1Fj8sUfZ6")
+                    : getStripeUrl("https://buy.stripe.com/6oE7uk5iFdo14cEfYY")
                 }
                 className="w-full text-center bg-white text-[#ff2429] py-3.5 rounded-xl font-black hover:bg-slate-50 transition-colors text-[17px] shadow-lg"
               >
@@ -1200,8 +1225,8 @@ const LandingPage = () => {
               <a
                 href={
                   isAnnual
-                    ? "https://buy.stripe.com/8wM8yo4eBfw9bF614d"
-                    : "https://buy.stripe.com/aEUeWMbH3fw9cJa7st"
+                    ? getStripeUrl("https://buy.stripe.com/8wM8yo4eBfw9bF614d")
+                    : getStripeUrl("https://buy.stripe.com/aEUeWMbH3fw9cJa7st")
                 }
                 className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200 mt-auto"
               >

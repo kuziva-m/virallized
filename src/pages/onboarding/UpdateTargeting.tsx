@@ -25,6 +25,10 @@ const UpdateTargeting = () => {
   const [currentInput, setCurrentInput] = useState("");
   const [password, setPassword] = useState("");
 
+  // 🚨 NEW: 3-STRIKES LIMIT STATES 🚨
+  const [updatesRemaining, setUpdatesRemaining] = useState(3);
+  const [isLocked, setIsLocked] = useState(false);
+
   useEffect(() => {
     const fetchProfile = async () => {
       const {
@@ -47,9 +51,44 @@ const UpdateTargeting = () => {
       setIsLoadingProfile(false);
     };
     fetchProfile();
+    checkLimits(); // Run limit check on load
   }, []);
 
-  // 🚨 UPDATED: Instant addition, no API tokens wasted!
+  // 🚨 NEW: LIMIT ENGINE 🚨
+  const checkLimits = () => {
+    const stored = localStorage.getItem("virallized_target_updates") || "[]";
+    let timestamps: number[] = [];
+    try {
+      timestamps = JSON.parse(stored);
+    } catch (e) {}
+
+    // Filter to only count updates from the last 24 hours
+    const now = Date.now();
+    const last24h = timestamps.filter(
+      (ts: number) => now - ts < 24 * 60 * 60 * 1000,
+    );
+
+    localStorage.setItem("virallized_target_updates", JSON.stringify(last24h));
+
+    const remaining = Math.max(0, 3 - last24h.length);
+    setUpdatesRemaining(remaining);
+    setIsLocked(remaining === 0);
+  };
+
+  const recordUpdate = () => {
+    const stored = localStorage.getItem("virallized_target_updates") || "[]";
+    let timestamps: number[] = [];
+    try {
+      timestamps = JSON.parse(stored);
+    } catch (e) {}
+    timestamps.push(Date.now());
+    localStorage.setItem(
+      "virallized_target_updates",
+      JSON.stringify(timestamps),
+    );
+    checkLimits();
+  };
+
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = currentInput.trim();
@@ -192,6 +231,8 @@ const UpdateTargeting = () => {
         console.error("Failed to send update email:", emailErr);
       }
 
+      recordUpdate(); // 🚨 LOG THE STRIKE
+
       if (isStandalone) {
         setIsSuccess(true);
       } else {
@@ -317,6 +358,22 @@ const UpdateTargeting = () => {
               </p>
             </div>
 
+            {/* 🚨 THE LIMIT NOTIFICATION BANNER 🚨 */}
+            <div
+              className={`mb-8 p-4 rounded-2xl border text-sm font-bold flex items-center gap-3 ${
+                isLocked
+                  ? "bg-red-50 text-red-600 border-red-200"
+                  : "bg-blue-50 text-blue-600 border-blue-200"
+              }`}
+            >
+              <div className="text-xl">{isLocked ? "🔒" : "💡"}</div>
+              <div>
+                {isLocked
+                  ? "Daily optimization limit reached to protect account safety. Please try again tomorrow."
+                  : `You have ${updatesRemaining} target update${updatesRemaining !== 1 ? "s" : ""} remaining today.`}
+              </div>
+            </div>
+
             <div className="flex flex-col gap-8">
               <div>
                 <label className={labelClass}>Instagram Username</label>
@@ -327,9 +384,10 @@ const UpdateTargeting = () => {
                   <input
                     type="text"
                     required
+                    disabled={isLocked}
                     value={handle}
                     onChange={(e) => setHandle(e.target.value)}
-                    className={`${inputClass} pl-9`}
+                    className={`${inputClass} pl-9 ${isLocked ? "opacity-50 bg-slate-100 cursor-not-allowed" : ""}`}
                     placeholder="yourusername"
                   />
                 </div>
@@ -342,13 +400,14 @@ const UpdateTargeting = () => {
                 <form onSubmit={handleAddItem} className="flex gap-3 mb-6">
                   <input
                     value={currentInput}
+                    disabled={isLocked}
                     onChange={(e) => setCurrentInput(e.target.value)}
                     placeholder="@competitor"
-                    className={`${inputClass} bg-white shadow-sm flex-1`}
+                    className={`${inputClass} bg-white shadow-sm flex-1 ${isLocked ? "opacity-50 cursor-not-allowed" : ""}`}
                   />
                   <button
                     type="submit"
-                    disabled={!currentInput.trim()}
+                    disabled={!currentInput.trim() || isLocked}
                     className="px-6 py-3 rounded-xl font-bold text-sm bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-200 transition-colors"
                   >
                     Add
@@ -366,8 +425,9 @@ const UpdateTargeting = () => {
                       </span>
                       <button
                         type="button"
+                        disabled={isLocked}
                         onClick={() => handleRemoveItem(index)}
-                        className="text-slate-400 hover:text-red-500 font-bold px-2 text-xl leading-none"
+                        className="text-slate-400 hover:text-red-500 disabled:opacity-50 font-bold px-2 text-xl leading-none"
                       >
                         ×
                       </button>
@@ -381,22 +441,25 @@ const UpdateTargeting = () => {
                 <input
                   type="password"
                   value={password}
+                  disabled={isLocked}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Only if changed"
-                  className={inputClass}
+                  className={`${inputClass} ${isLocked ? "opacity-50 bg-slate-100 cursor-not-allowed" : ""}`}
                 />
               </div>
 
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting || !handle.trim()}
+                disabled={isSubmitting || !handle.trim() || isLocked}
                 className="w-full text-center bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white py-4 rounded-xl font-black tracking-wide hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[#ff2429]/20"
               >
                 {isSubmitting
                   ? "Saving..."
-                  : isStandalone
-                    ? "Save Changes"
-                    : "Save & Continue"}
+                  : isLocked
+                    ? "Limit Reached"
+                    : isStandalone
+                      ? "Save Changes"
+                      : "Save & Continue"}
               </button>
             </div>
           </section>
