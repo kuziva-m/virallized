@@ -74,6 +74,8 @@ const Dashboard = () => {
   };
 
   const fetchDashboardData = async () => {
+    setLoading(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -83,22 +85,64 @@ const Dashboard = () => {
       return;
     }
 
-    const { data: clientData, error: clientError } = await supabase
+    let resolvedClient: any = null;
+
+    // Primary lookup: the correct structure is clients.id === auth.users.id.
+    // Use maybeSingle() so a missing row does not throw the PGRST116 console error.
+    const { data: clientById, error: clientByIdError } = await supabase
       .from("clients")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (clientError) console.error("Error fetching profile:", clientError);
-    if (clientData) setProfile(clientData);
+    if (clientByIdError) {
+      console.error("Error fetching profile by auth ID:", clientByIdError);
+    }
 
+    resolvedClient = clientById;
+
+    // Safety fallback for any older/manual client rows that were created with
+    // a random UUID instead of the auth user ID. This keeps the dashboard usable
+    // while you clean up old rows in Supabase.
+    if (!resolvedClient && user.email) {
+      const { data: clientByEmail, error: clientByEmailError } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("email", user.email)
+        .maybeSingle();
+
+      if (clientByEmailError) {
+        console.error("Error fetching profile by email:", clientByEmailError);
+      }
+
+      resolvedClient = clientByEmail;
+    }
+
+    if (!resolvedClient) {
+      console.error(
+        "No client profile found for logged-in user:",
+        user.id,
+        user.email,
+      );
+      setProfile(null);
+      setMetrics([]);
+      setLoading(false);
+      return;
+    }
+
+    setProfile(resolvedClient);
+
+    // Important: use the actual client row ID, not always user.id.
+    // This prevents the chart from breaking for older/manual rows that use a
+    // different clients.id value.
     const { data: metricData, error: metricError } = await supabase
       .from("growth_metrics")
       .select("*")
-      .eq("client_id", user.id)
+      .eq("client_id", resolvedClient.id)
       .order("recorded_at", { ascending: true });
 
     if (metricError) console.error("Error fetching metrics:", metricError);
+
     if (metricData) {
       const formattedMetrics = metricData.map((m) => ({
         ...m,
@@ -109,6 +153,8 @@ const Dashboard = () => {
         }),
       }));
       setMetrics(formattedMetrics);
+    } else {
+      setMetrics([]);
     }
 
     setLoading(false);

@@ -34,7 +34,27 @@ interface BlogPost {
   created_at?: string;
 }
 
+interface AnalyzedAccount {
+  id: string;
+  created_at: string;
+  email: string;
+  ig_handle: string;
+  followers: number | null;
+  profile_image_url: string | null;
+  avg_likes: number | null;
+  avg_comments: number | null;
+  engagement_rate: number | null;
+  projected_with_us: number | null;
+  projected_without_us: number | null;
+  gain_with_us: number | null;
+  gain_without_us: number | null;
+  posts_analyzed: number | null;
+  has_posts: boolean | null;
+  source: string | null;
+}
+
 type AdminRole = "superadmin" | "blogger" | null;
+type DashboardTab = "clients" | "blogs" | "analyzed";
 
 const AdminDashboard = () => {
   // --- AUTH & ROLE STATE ---
@@ -46,12 +66,16 @@ const AdminDashboard = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // --- NAVIGATION STATE ---
-  const [activeTab, setActiveTab] = useState<"clients" | "blogs">("clients");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("clients");
 
   // --- DASHBOARD STATE ---
   const [clients, setClients] = useState<Client[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
+  const [analyzedAccounts, setAnalyzedAccounts] = useState<AnalyzedAccount[]>(
+    [],
+  );
+  const [analyzedSearchQuery, setAnalyzedSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   // --- CLIENT EDITING & DELETING STATE ---
@@ -66,6 +90,16 @@ const AdminDashboard = () => {
   const [isSendingSetupEmail, setIsSendingSetupEmail] = useState(false);
   const [isSendingVerifyLoginEmail, setIsSendingVerifyLoginEmail] =
     useState(false);
+  const [isSendingTargetsEmail, setIsSendingTargetsEmail] = useState(false);
+  const [sendingAnalyzerLeadId, setSendingAnalyzerLeadId] = useState<
+    string | null
+  >(null);
+  const [sendingAnalyzerLeadOfferId, setSendingAnalyzerLeadOfferId] = useState<
+    string | null
+  >(null);
+  const [deletingAnalyzerLeadId, setDeletingAnalyzerLeadId] = useState<
+    string | null
+  >(null);
 
   // Gorgeous Modal States
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -86,78 +120,251 @@ const AdminDashboard = () => {
 
   const quillRef = useRef<any>(null);
 
+  // Prevent stale background-tab requests from leaving the dashboard stuck in loading state.
+  const isMountedRef = useRef(true);
+  const latestFetchIdRef = useRef(0);
+
+  const withTimeout = async <T,>(
+    promise: PromiseLike<T>,
+    label: string,
+    timeoutMs = 15000,
+  ): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`${label} timed out. Please check your connection.`));
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      latestFetchIdRef.current += 1;
+    };
+  }, []);
+
   // --- INITIALIZE AUTH & CHECK ROLES ---
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMountedRef.current) return;
+
       setSession(session);
+
       if (session?.user?.email) {
         await verifyAndSetRole(session.user.email);
+      } else {
+        setAdminRole(null);
+        setIsLoading(false);
       }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+
       if (session?.user?.email) {
-        await verifyAndSetRole(session.user.email);
+        // Keep Supabase auth callbacks light. Heavy async work inside this
+        // callback can freeze after a browser tab is suspended/resumed.
+        setTimeout(() => {
+          void verifyAndSetRole(session.user.email || "", { silent: true });
+        }, 0);
       } else {
         setAdminRole(null);
+        setIsLoading(false);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const verifyAndSetRole = async (userEmail: string) => {
-    const { data, error } = await supabase
-      .from("admin_roles")
-      .select("role")
-      .eq("email", userEmail)
-      .single();
+  const verifyAndSetRole = async (
+    userEmail: string,
+    options: { silent?: boolean } = {},
+  ) => {
+    if (!userEmail) return null;
 
-    if (error || !data) {
-      alert(
-        "Access Denied: This email is not registered as an authorized admin.",
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from("admin_roles")
+          .select("role")
+          .eq("email", userEmail)
+          .single(),
+        "Admin role check",
       );
-      await supabase.auth.signOut();
-      setAdminRole(null);
-    } else {
-      setAdminRole(data.role as AdminRole);
-      if (data.role === "blogger") {
-        setActiveTab("blogs");
+
+      if (error || !data) {
+        if (!options.silent) {
+          alert(
+            "Access Denied: This email is not registered as an authorized admin.",
+          );
+        }
+
+        await supabase.auth.signOut();
+
+        if (isMountedRef.current) {
+          setAdminRole(null);
+          setIsLoading(false);
+        }
+
+        return null;
       }
+
+      const role = data.role as AdminRole;
+
+      if (isMountedRef.current) {
+        setAdminRole(role);
+
+        if (role === "blogger") {
+          setActiveTab("blogs");
+        }
+      }
+
+      return role;
+    } catch (error) {
+      console.error("Admin role check failed:", error);
+
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+
+      return null;
     }
   };
 
   // --- FETCH DATA ---
   useEffect(() => {
     if (session && adminRole) {
-      fetchData();
+      void fetchData();
+    } else {
+      setIsLoading(false);
     }
   }, [session, activeTab, adminRole]);
 
-  const fetchData = async () => {
-    setIsLoading(true);
-
-    if (activeTab === "clients" && adminRole === "superadmin") {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (!error) setClients((data as Client[]) || []);
-    } else if (activeTab === "blogs") {
-      const { data, error } = await supabase
-        .from("blogs")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (!error) setBlogs((data as BlogPost[]) || []);
+  const fetchData = async (options: { silent?: boolean } = {}) => {
+    if (!session || !adminRole) {
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    const fetchId = latestFetchIdRef.current + 1;
+    latestFetchIdRef.current = fetchId;
+
+    if (!options.silent) {
+      setIsLoading(true);
+    }
+
+    try {
+      if (activeTab === "clients" && adminRole === "superadmin") {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("clients")
+            .select("*")
+            .order("created_at", { ascending: false }),
+          "Loading clients",
+        );
+
+        if (fetchId !== latestFetchIdRef.current || !isMountedRef.current) {
+          return;
+        }
+
+        if (error) throw error;
+
+        setClients((data as Client[]) || []);
+      } else if (activeTab === "analyzed" && adminRole === "superadmin") {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("analyzed_accounts")
+            .select("*")
+            .order("created_at", { ascending: false }),
+          "Loading analyzer leads",
+        );
+
+        if (fetchId !== latestFetchIdRef.current || !isMountedRef.current) {
+          return;
+        }
+
+        if (error) throw error;
+
+        setAnalyzedAccounts((data as AnalyzedAccount[]) || []);
+      } else if (activeTab === "blogs") {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("blogs")
+            .select("*")
+            .order("created_at", { ascending: false }),
+          "Loading posts",
+        );
+
+        if (fetchId !== latestFetchIdRef.current || !isMountedRef.current) {
+          return;
+        }
+
+        if (error) throw error;
+
+        setBlogs((data as BlogPost[]) || []);
+      }
+    } catch (error) {
+      console.error("Failed to load dashboard data:", error);
+    } finally {
+      if (fetchId === latestFetchIdRef.current && isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
   };
+
+  // Refresh session and data when returning to the tab after browser suspension.
+  useEffect(() => {
+    const recoverDashboard = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const freshSession = data.session;
+
+        if (!isMountedRef.current) return;
+
+        setSession(freshSession);
+
+        if (freshSession?.user?.email) {
+          const role = await verifyAndSetRole(freshSession.user.email, {
+            silent: true,
+          });
+
+          if (role) {
+            await fetchData({ silent: true });
+          }
+        } else {
+          setAdminRole(null);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error("Dashboard resume recovery failed:", error);
+        setIsLoading(false);
+      }
+    };
+
+    window.addEventListener("focus", recoverDashboard);
+    window.addEventListener("online", recoverDashboard);
+    document.addEventListener("visibilitychange", recoverDashboard);
+
+    return () => {
+      window.removeEventListener("focus", recoverDashboard);
+      window.removeEventListener("online", recoverDashboard);
+      document.removeEventListener("visibilitychange", recoverDashboard);
+    };
+  }, [session, adminRole, activeTab]);
 
   // --- AUTH HANDLERS ---
   const handleLogin = async (e: FormEvent) => {
@@ -189,6 +396,60 @@ const AdminDashboard = () => {
     );
   });
 
+  const filteredAnalyzedAccounts = analyzedAccounts.filter((lead) => {
+    const query = analyzedSearchQuery.toLowerCase();
+
+    return (
+      lead.ig_handle?.toLowerCase().includes(query) ||
+      lead.email?.toLowerCase().includes(query)
+    );
+  });
+
+  const formatDashboardNumber = (value?: number | null) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) return "0";
+
+    return new Intl.NumberFormat().format(numericValue);
+  };
+
+  const formatDashboardPercent = (value?: number | null) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) return "0.00%";
+
+    return `${numericValue.toFixed(numericValue < 1 ? 2 : 1)}%`;
+  };
+
+  const normalizeInstagramHandle = (handle?: string | null) => {
+    return handle?.replace(/^@/, "").trim() || "";
+  };
+
+  const buildInstagramUrl = (handle?: string | null) => {
+    const normalizedHandle = normalizeInstagramHandle(handle);
+
+    return normalizedHandle ? `https://instagram.com/${normalizedHandle}` : "#";
+  };
+
+  const escapeHtml = (value?: string | number | null) => {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
+  const averageAnalyzedFollowers =
+    analyzedAccounts.length > 0
+      ? Math.round(
+          analyzedAccounts.reduce(
+            (total, lead) => total + (Number(lead.followers) || 0),
+            0,
+          ) / analyzedAccounts.length,
+        )
+      : 0;
+
   const isNewClient = (createdAt: string) => {
     const clientDate = new Date(createdAt).getTime();
     const sevenDaysAgo = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
@@ -202,6 +463,248 @@ const AdminDashboard = () => {
 
   const formatPlanName = (plan?: string) => {
     return plan?.trim().toUpperCase() || "STANDARD";
+  };
+
+  // --- ANALYZER LEAD EMAIL HANDLER ---
+  const sendAnalyzerLeadFollowUpEmail = async (lead: AnalyzedAccount) => {
+    if (!lead.email) {
+      alert("This lead does not have an email address attached.");
+      return;
+    }
+
+    const normalizedHandle = normalizeInstagramHandle(lead.ig_handle);
+    const confirmSend = window.confirm(
+      `Send growth invitation email to ${lead.email}?`,
+    );
+
+    if (!confirmSend) return;
+
+    setSendingAnalyzerLeadId(lead.id);
+
+    const followers = formatDashboardNumber(lead.followers);
+    const engagementRate = formatDashboardPercent(lead.engagement_rate);
+    const projectedGrowth = formatDashboardNumber(lead.gain_with_us);
+    const projectedFollowers = formatDashboardNumber(lead.projected_with_us);
+    const safeHandle = escapeHtml(normalizedHandle || "your account");
+    const pricingUrl = "https://www.virallized.com/#pricing";
+
+    const emailHtml = `
+      <div style="font-family: sans-serif; padding: 30px; border: 1px solid #eaeaea; border-radius: 12px; max-width: 600px; margin: 0 auto; color: #1e293b;">
+        <h2 style="color: #f80d5d; margin-top: 0; font-size: 24px;">Your Instagram Growth Analysis Is Ready</h2>
+
+        <p style="font-size: 16px; line-height: 1.6;">Hi there,</p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          Thanks for analyzing <strong>@${safeHandle}</strong> with Virallized. We took a look at the numbers from your public Instagram profile and your account has a clear opportunity to grow with the right targeting.
+        </p>
+
+        <div style="background-color: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 26px 0;">
+          <div style="font-size: 12px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">Your snapshot</div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px;">Current followers</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${followers}</div>
+            </div>
+
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px;">Engagement</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${engagementRate}</div>
+            </div>
+
+            <div style="background-color: #fff1f2; border: 1px solid #fda6e1; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #f80d5d; text-transform: uppercase; margin-bottom: 5px;">Potential 12-month gain</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">+${projectedGrowth}</div>
+            </div>
+
+            <div style="background-color: #fff1f2; border: 1px solid #fda6e1; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #f80d5d; text-transform: uppercase; margin-bottom: 5px;">Projected followers</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${projectedFollowers}</div>
+            </div>
+          </div>
+        </div>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          Virallized helps accounts grow through real targeted exposure — no bots, no fake followers, and no posting on your behalf. Our team helps put your profile in front of people who are more likely to care about your content and follow you naturally.
+        </p>
+
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${pricingUrl}" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+            View Growth Plans
+          </a>
+        </div>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #64748b; background-color: #f8f9fa; padding: 15px; border-radius: 8px; font-style: italic;">
+          Not sure which plan fits <strong>@${safeHandle}</strong>? Just reply to this email and we’ll recommend the best option for your account size and goals.
+        </p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          Questions? <a href="mailto:support@virallized.com" style="color: #f80d5d; font-weight: bold; text-decoration: none;">support@virallized.com</a>
+        </p>
+      </div>
+    `;
+
+    try {
+      await supabase.functions.invoke("send-email", {
+        body: {
+          to: lead.email,
+          reply_to: "support@virallized.com",
+          subject: `Your Instagram Growth Analysis for @${normalizedHandle}`,
+          html: emailHtml,
+        },
+      });
+
+      alert(`Success! Growth invitation sent to ${lead.email}`);
+    } catch (error) {
+      console.error("Failed to send analyzer lead email:", error);
+      alert("Failed to send email. Please check the console or try again.");
+    } finally {
+      setSendingAnalyzerLeadId(null);
+    }
+  };
+
+  const sendAnalyzerLeadDiscountEmail = async (lead: AnalyzedAccount) => {
+    if (!lead.email) {
+      alert("This lead does not have an email address attached.");
+      return;
+    }
+
+    const normalizedHandle = normalizeInstagramHandle(lead.ig_handle);
+    const confirmSend = window.confirm(
+      `Send 50% off first month offer to ${lead.email}?`,
+    );
+
+    if (!confirmSend) return;
+
+    setSendingAnalyzerLeadOfferId(lead.id);
+
+    const followers = formatDashboardNumber(lead.followers);
+    const engagementRate = formatDashboardPercent(lead.engagement_rate);
+    const projectedGrowth = formatDashboardNumber(lead.gain_with_us);
+    const projectedFollowers = formatDashboardNumber(lead.projected_with_us);
+    const safeHandle = escapeHtml(normalizedHandle || "your account");
+    const pricingUrl = "https://www.virallized.com/#pricing";
+    const discountCode = "50OFF";
+
+    const emailHtml = `
+      <div style="font-family: sans-serif; padding: 30px; border: 1px solid #eaeaea; border-radius: 12px; max-width: 600px; margin: 0 auto; color: #1e293b;">
+        <h2 style="color: #f80d5d; margin-top: 0; font-size: 24px;">A quick note about @${safeHandle}</h2>
+
+        <p style="font-size: 16px; line-height: 1.6;">Hey, Jay here — account manager at Virallized.</p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          I noticed you analyzed <strong>@${safeHandle}</strong> with us, so I had a quick look through the metrics. Based on the numbers, I think we can make a lot happen with your account if we get the targeting right.
+        </p>
+
+        <div style="background-color: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 26px 0;">
+          <div style="font-size: 12px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">Your account snapshot</div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px;">Current followers</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${followers}</div>
+            </div>
+
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px;">Engagement</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${engagementRate}</div>
+            </div>
+
+            <div style="background-color: #fff1f2; border: 1px solid #fda6e1; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #f80d5d; text-transform: uppercase; margin-bottom: 5px;">Potential 12-month gain</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">+${projectedGrowth}</div>
+            </div>
+
+            <div style="background-color: #fff1f2; border: 1px solid #fda6e1; border-radius: 10px; padding: 14px;">
+              <div style="font-size: 11px; font-weight: bold; color: #f80d5d; text-transform: uppercase; margin-bottom: 5px;">Projected followers</div>
+              <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${projectedFollowers}</div>
+            </div>
+          </div>
+        </div>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          If you want to get started, I set aside an exclusive first-month deal for you. You can get <strong>50% off your first month on any plan</strong> using the code below at checkout.
+        </p>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="display: inline-block; background-color: #fff1f2; border: 1px dashed #f80d5d; color: #f80d5d; padding: 12px 24px; border-radius: 10px; font-size: 24px; font-weight: 900; letter-spacing: 0.12em; margin-bottom: 16px;">
+            ${discountCode}
+          </div>
+
+          <br />
+
+          <a href="${pricingUrl}" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+            Claim 50% Off First Month
+          </a>
+        </div>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #64748b; background-color: #f8f9fa; padding: 15px; border-radius: 8px; font-style: italic;">
+          Use code <strong>${discountCode}</strong> at checkout. The offer applies to the first month only. If you’re not sure which plan is best for <strong>@${safeHandle}</strong>, just reply and I’ll point you in the right direction.
+        </p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          Speak soon,<br />
+          <strong>Jay</strong><br />
+          Account Manager, Virallized
+        </p>
+      </div>
+    `;
+
+    try {
+      await supabase.functions.invoke("send-email", {
+        body: {
+          to: lead.email,
+          reply_to: "support@virallized.com",
+          subject: `Jay from Virallized — 50% off your first month for @${normalizedHandle}`,
+          html: emailHtml,
+        },
+      });
+
+      alert(`Success! 50% offer sent to ${lead.email}`);
+    } catch (error) {
+      console.error("Failed to send analyzer discount email:", error);
+      alert(
+        "Failed to send discount email. Please check the console or try again.",
+      );
+    } finally {
+      setSendingAnalyzerLeadOfferId(null);
+    }
+  };
+
+  const deleteAnalyzerLead = async (lead: AnalyzedAccount) => {
+    const normalizedHandle = normalizeInstagramHandle(lead.ig_handle);
+    const leadLabel = normalizedHandle ? `@${normalizedHandle}` : lead.email;
+
+    const confirmDelete = window.confirm(
+      `Delete analyzer lead ${leadLabel}? This will permanently remove the lead from the database.`,
+    );
+
+    if (!confirmDelete) return;
+
+    setDeletingAnalyzerLeadId(lead.id);
+
+    try {
+      const { error } = await supabase
+        .from("analyzed_accounts")
+        .delete()
+        .eq("id", lead.id);
+
+      if (error) throw error;
+
+      setAnalyzedAccounts((currentLeads) =>
+        currentLeads.filter((currentLead) => currentLead.id !== lead.id),
+      );
+
+      alert(`Deleted analyzer lead ${leadLabel}.`);
+    } catch (error: any) {
+      console.error("Failed to delete analyzer lead:", error);
+      alert(
+        "Failed to delete analyzer lead: " +
+          (error?.message || "Please check the console or try again."),
+      );
+    } finally {
+      setDeletingAnalyzerLeadId(null);
+    }
   };
 
   // --- ONE-CLICK EMAIL HANDLERS ---
@@ -231,7 +734,7 @@ const AdminDashboard = () => {
         </p>
 
         <div style="text-align: center; margin: 35px 0;">
-          <a href="https://virallized.com/login" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">Login to Dashboard</a>
+          <a href="https://www.virallized.com/login" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">Login to Dashboard</a>
         </div>
         
         <p style="font-size: 14px; line-height: 1.6; color: #64748b; background-color: #f8f9fa; padding: 15px; border-radius: 8px; font-style: italic;">
@@ -286,7 +789,7 @@ const AdminDashboard = () => {
 
         <div style="margin: 30px 0;">
           <div style="margin-bottom: 15px;">
-            <a href="https://virallized.com/login" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block; text-align: center;">Option 1: Login to Dashboard</a>
+            <a href="https://www.virallized.com/login" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block; text-align: center;">Option 1: Login to Dashboard</a>
           </div>
 
           <div>
@@ -375,6 +878,70 @@ const AdminDashboard = () => {
     }
   };
 
+  const sendTargetsReminderEmail = async () => {
+    if (!selectedClient) return;
+
+    const confirmSend = window.confirm(
+      `Send 'Add More Targets' email to ${selectedClient.email}?`,
+    );
+
+    if (!confirmSend) return;
+
+    setIsSendingTargetsEmail(true);
+
+    const emailHtml = `
+      <div style="font-family: sans-serif; padding: 30px; border: 1px solid #eaeaea; border-radius: 12px; max-width: 600px; margin: 0 auto; color: #1e293b;">
+        <h2 style="color: #f80d5d; margin-top: 0; font-size: 24px;">Recommended: Add More Targets</h2>
+
+        <p style="font-size: 16px; line-height: 1.6;">Hi ${getFirstName(selectedClient.full_name)},</p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          To get the most out of your growth plan, and to allow our team to optimize your target list, we strongly recommend adding 5-10 more targets using your dashboard.
+        </p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          Adding more targets gives our team more high-quality data to work with, helping us refine your campaign and reach the right audience more effectively.
+        </p>
+
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="https://www.virallized.com/login" style="background-color: #f80d5d; color: #ffffff; padding: 14px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px; display: inline-block; margin: 6px;">
+            Login to Add Targets
+          </a>
+
+          <a href="https://www.virallized.com/update-targeting" style="background-color: #1e293b; color: #ffffff; padding: 14px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px; display: inline-block; margin: 6px;">
+            Add via Update Targeting Page
+          </a>
+        </div>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #64748b; background-color: #f8f9fa; padding: 15px; border-radius: 8px; font-style: italic;">
+          Recommended: add 5-10 relevant competitor accounts, niche accounts, or audience sources that closely match the type of followers you want to attract.
+        </p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          Questions? <a href="mailto:support@virallized.com" style="color: #f80d5d; font-weight: bold; text-decoration: none;">support@virallized.com</a>
+        </p>
+      </div>
+    `;
+
+    try {
+      await supabase.functions.invoke("send-email", {
+        body: {
+          to: selectedClient.email,
+          reply_to: "support@virallized.com",
+          subject: "Recommended: Add More Targets to Optimize Your Growth",
+          html: emailHtml,
+        },
+      });
+
+      alert(`Success! Targets email sent to ${selectedClient.email}`);
+    } catch (error) {
+      console.error("Failed to send targets email:", error);
+      alert("Failed to send email. Please check the console or try again.");
+    } finally {
+      setIsSendingTargetsEmail(false);
+    }
+  };
+
   const sendSetupCompleteEmail = async () => {
     if (!selectedClient) return;
 
@@ -409,7 +976,7 @@ const AdminDashboard = () => {
         </p>
 
         <div style="text-align: center; margin: 35px 0;">
-          <a href="https://virallized.com/login" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+          <a href="https://www.virallized.com/login" style="background-color: #f80d5d; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
             Access Your Dashboard
           </a>
         </div>
@@ -815,6 +1382,19 @@ const AdminDashboard = () => {
             </button>
           )}
 
+          {adminRole === "superadmin" && (
+            <button
+              onClick={() => setActiveTab("analyzed")}
+              className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
+                activeTab === "analyzed"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+              }`}
+            >
+              Analyzer Leads
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab("blogs")}
             className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
@@ -920,6 +1500,248 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* --- ANALYZER LEADS TAB --- */}
+        {activeTab === "analyzed" && adminRole === "superadmin" && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Total Leads
+                </div>
+
+                <div className="text-3xl font-black text-slate-900">
+                  {analyzedAccounts.length}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Emails Captured
+                </div>
+
+                <div className="text-3xl font-black text-slate-900">
+                  {
+                    analyzedAccounts.filter((lead) => Boolean(lead.email))
+                      .length
+                  }
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  With Posts
+                </div>
+
+                <div className="text-3xl font-black text-slate-900">
+                  {analyzedAccounts.filter((lead) => lead.has_posts).length}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Avg Followers
+                </div>
+
+                <div className="text-3xl font-black text-slate-900">
+                  {formatDashboardNumber(averageAnalyzedFollowers)}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-[2rem] shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-slate-50/50">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">
+                    Analyzer Leads
+                  </h2>
+
+                  <p className="text-xs font-bold text-slate-400 mt-1">
+                    People who entered an email and analyzed an Instagram
+                    account.
+                  </p>
+                </div>
+
+                <div className="relative max-w-sm w-full">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    🔍
+                  </span>
+
+                  <input
+                    type="text"
+                    placeholder="Search email or handle..."
+                    value={analyzedSearchQuery}
+                    onChange={(e) => setAnalyzedSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#f80d5d] focus:ring-1 focus:ring-[#f80d5d] text-sm font-medium transition-all"
+                  />
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="p-10 text-center text-slate-400 font-bold animate-pulse">
+                  Loading analyzer leads...
+                </div>
+              ) : filteredAnalyzedAccounts.length === 0 ? (
+                <div className="p-12 text-center">
+                  <p className="text-slate-500 font-medium">
+                    No analyzer leads found yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredAnalyzedAccounts.map((lead) => {
+                    const normalizedHandle = normalizeInstagramHandle(
+                      lead.ig_handle,
+                    );
+
+                    return (
+                      <div
+                        key={lead.id}
+                        className="px-6 py-5 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                          <div className="flex items-start gap-4 min-w-0">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#ffae07] to-[#f80d5d] text-white flex items-center justify-center font-black text-lg shrink-0 shadow-md">
+                              @
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <a
+                                  href={buildInstagramUrl(lead.ig_handle)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-base font-black text-slate-900 hover:text-[#f80d5d] transition-colors truncate"
+                                >
+                                  @{normalizedHandle || "unknown"}
+                                </a>
+
+                                {isNewClient(lead.created_at) && (
+                                  <span className="bg-green-100 text-green-700 border border-green-200 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                                    New
+                                  </span>
+                                )}
+
+                                {!lead.has_posts && (
+                                  <span className="bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                                    No posts
+                                  </span>
+                                )}
+                              </div>
+
+                              <a
+                                href={`mailto:${lead.email}`}
+                                className="text-sm text-[#f80d5d] font-bold hover:underline break-all"
+                              >
+                                {lead.email}
+                              </a>
+
+                              <div className="text-xs font-medium text-slate-400 mt-1">
+                                Analyzed:{" "}
+                                {new Date(lead.created_at).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:min-w-[520px]">
+                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                              <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                Followers
+                              </div>
+
+                              <div className="text-sm font-black text-slate-900">
+                                {formatDashboardNumber(lead.followers)}
+                              </div>
+                            </div>
+
+                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                              <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                Engagement
+                              </div>
+
+                              <div className="text-sm font-black text-slate-900">
+                                {formatDashboardPercent(lead.engagement_rate)}
+                              </div>
+                            </div>
+
+                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                              <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                With Us
+                              </div>
+
+                              <div className="text-sm font-black text-slate-900">
+                                +{formatDashboardNumber(lead.gain_with_us)}
+                              </div>
+                            </div>
+
+                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                              <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                Posts
+                              </div>
+
+                              <div className="text-sm font-black text-slate-900">
+                                {formatDashboardNumber(lead.posts_analyzed)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 mt-5 lg:justify-end">
+                          <button
+                            type="button"
+                            onClick={() => sendAnalyzerLeadFollowUpEmail(lead)}
+                            disabled={
+                              sendingAnalyzerLeadId === lead.id || !lead.email
+                            }
+                            className="bg-[#f80d5d] hover:bg-[#df0b54] text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {sendingAnalyzerLeadId === lead.id
+                              ? "Sending..."
+                              : "Email Lead"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => sendAnalyzerLeadDiscountEmail(lead)}
+                            disabled={
+                              sendingAnalyzerLeadOfferId === lead.id ||
+                              !lead.email
+                            }
+                            className="bg-[#fff1f2] hover:bg-[#ffe4e9] text-[#f80d5d] border border-[#fda6e1] px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {sendingAnalyzerLeadOfferId === lead.id
+                              ? "Sending Offer..."
+                              : "Send 50% Offer"}
+                          </button>
+
+                          <a
+                            href={buildInstagramUrl(lead.ig_handle)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="bg-white border border-slate-200 text-slate-600 hover:text-[#f80d5d] hover:border-[#fda6e1] px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm"
+                          >
+                            View Instagram
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => deleteAnalyzerLead(lead)}
+                            disabled={deletingAnalyzerLeadId === lead.id}
+                            className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {deletingAnalyzerLeadId === lead.id
+                              ? "Deleting..."
+                              : "Delete Lead"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1202,6 +2024,16 @@ const AdminDashboard = () => {
                       {isSendingSetupEmail
                         ? "Sending..."
                         : "Send 'Setup Complete' Email"}
+                    </button>
+
+                    <button
+                      onClick={sendTargetsReminderEmail}
+                      disabled={isSendingTargetsEmail}
+                      className="w-full bg-pink-50 hover:bg-pink-100 text-[#f80d5d] font-bold py-3.5 rounded-xl transition-colors border border-pink-200 text-[13px] shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isSendingTargetsEmail
+                        ? "Sending..."
+                        : "Send 'Add More Targets' Email"}
                     </button>
 
                     <button

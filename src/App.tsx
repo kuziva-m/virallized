@@ -1,34 +1,48 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-// Pages
+// Keep the main homepage eager so the homepage does not get a loading flash.
 import LandingPage from "./pages/LandingPage";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Settings from "./pages/Settings";
-import AdminDashboard from "./pages/AdminDashboard";
-import Blog from "./pages/Blog";
-import BlogPost from "./pages/BlogPost";
 
-// Legal Pages
-import TermsOfService from "./pages/TermsOfService";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
+// Lazy-loaded public pages
+const InstagramGrowth50Off = lazy(
+  () => import("./pages/LandingPage-instagram-growth-50-off"),
+);
+const Off50 = lazy(() => import("./pages/LandingPage-50-off"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const Blog = lazy(() => import("./pages/Blog"));
+const BlogPost = lazy(() => import("./pages/BlogPost"));
 
-// Onboarding Pages
-import Setup from "./pages/onboarding/Setup";
-import UpdateTargeting from "./pages/onboarding/UpdateTargeting";
-import Whitelist from "./pages/onboarding/Whitelist";
-import Add2FA from "./pages/onboarding/Add2FA";
+// Lazy-loaded onboarding pages
+const Setup = lazy(() => import("./pages/onboarding/Setup"));
+const UpdateTargeting = lazy(
+  () => import("./pages/onboarding/UpdateTargeting"),
+);
+const Whitelist = lazy(() => import("./pages/onboarding/Whitelist"));
+const Add2FA = lazy(() => import("./pages/onboarding/Add2FA"));
 
-// 👇 CAPITALIZED IMPORTS
-import InstagramGrowth50Off from "./pages/LandingPage-instagram-growth-50-off";
-import Off50 from "./pages/LandingPage-50-off";
-import BlogAdmin from "./pages/BlogAdmin";
+// Lazy-loaded private/auth/admin pages
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const BlogAdmin = lazy(() => import("./pages/BlogAdmin"));
+
+function PageFallback() {
+  return (
+    <div
+      className="min-h-screen bg-white"
+      aria-label="Loading page"
+      role="status"
+    />
+  );
+}
 
 function App() {
-  // 🚨 GLOBAL REWARDFUL TRACKER 🚨
+  // Global Rewardful tracker.
+  // Kept as-is to avoid breaking affiliate/referral tracking.
   useEffect(() => {
-    // 1. Initialize the Rewardful queue
     (window as any)._rwq = "rewardful";
     (window as any).rewardful =
       (window as any).rewardful ||
@@ -38,60 +52,61 @@ function App() {
         );
       };
 
-    // 2. Inject the script if it doesn't already exist
     if (!document.querySelector("script[data-rewardful]")) {
       const script = document.createElement("script");
       script.async = true;
       script.src = "https://r.wdfl.co/rw.js";
-      script.setAttribute("data-rewardful", "da4581"); // Your public API key
+      script.setAttribute("data-rewardful", "da4581");
       document.head.appendChild(script);
     }
   }, []);
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* The Main Landing Page */}
-        <Route path="/" element={<LandingPage />} />
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          {/* Main Landing Page */}
+          <Route path="/" element={<LandingPage />} />
 
-        {/* Promo Pages */}
-        <Route
-          path="/instagram-growth-50-off"
-          element={<InstagramGrowth50Off />}
-        />
-        <Route path="/50-off" element={<Off50 />} />
+          {/* Promo Pages */}
+          <Route
+            path="/instagram-growth-50-off"
+            element={<InstagramGrowth50Off />}
+          />
+          <Route path="/50-off" element={<Off50 />} />
 
-        {/* Legal Pages */}
-        <Route path="/terms-of-service" element={<TermsOfService />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          {/* Legal Pages */}
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
-        {/* Blog Pages */}
-        <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:slug" element={<BlogPost />} />
+          {/* Blog Pages */}
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:slug" element={<BlogPost />} />
 
-        {/* Onboarding Flow - Dynamic Pricing Routes */}
-        <Route path="/set-up" element={<Setup />} />
-        <Route path="/set-up-199" element={<Setup />} />
-        <Route path="/set-up-pro" element={<Setup />} />
-        <Route path="/set-up-299" element={<Setup />} />
+          {/* Onboarding Flow - Dynamic Pricing Routes */}
+          <Route path="/set-up" element={<Setup />} />
+          <Route path="/set-up-199" element={<Setup />} />
+          <Route path="/set-up-pro" element={<Setup />} />
+          <Route path="/set-up-299" element={<Setup />} />
 
-        {/* Rest of Onboarding */}
-        <Route path="/update-targeting" element={<UpdateTargeting />} />
-        <Route path="/whitelist" element={<Whitelist />} />
-        <Route path="/add-2fa" element={<Add2FA />} />
+          {/* Rest of Onboarding */}
+          <Route path="/update-targeting" element={<UpdateTargeting />} />
+          <Route path="/whitelist" element={<Whitelist />} />
+          <Route path="/add-2fa" element={<Add2FA />} />
 
-        {/* Auth & Command Center */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/settings" element={<Settings />} />
+          {/* Auth & Command Center */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/settings" element={<Settings />} />
 
-        {/* Admin Portal */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/blog-admin" element={<BlogAdmin />} />
+          {/* Admin Portal */}
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/blog-admin" element={<BlogAdmin />} />
 
-        {/* Catch-all: Redirects any unknown URLs back to the home page (MUST BE LAST) */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

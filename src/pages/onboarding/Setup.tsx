@@ -210,6 +210,27 @@ const Setup = () => {
 
         if (dbError) throw dbError;
 
+        // --- 0. RUN DAY 1 TRACKING IMMEDIATELY ---
+        // This creates the first growth_metrics row right after signup so the
+        // dashboard can show current followers on Day 1 instead of waiting for
+        // the midnight cron job.
+        try {
+          const { error: trackerError } = await supabase.functions.invoke(
+            "daily-tracker",
+            {
+              body: {
+                clientId: authData.user.id,
+              },
+            },
+          );
+
+          if (trackerError) {
+            console.error("Day 1 tracker failed:", trackerError);
+          }
+        } catch (trackerErr) {
+          console.error("Day 1 tracker crashed:", trackerErr);
+        }
+
         // --- 1. SEND ALERT TO JAY (ADMIN) ---
         try {
           const adminEmailHtml = `
