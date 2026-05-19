@@ -7,6 +7,13 @@ const rapidApiKey = Deno.env.get("RAPIDAPI_KEY") ?? "";
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 const RAPIDAPI_HOST = "instagram-scraper-stable-api.p.rapidapi.com";
 const ACCOUNT_DATA_ENDPOINT =
   "https://instagram-scraper-stable-api.p.rapidapi.com/ig_get_fb_profile_v3.php";
@@ -109,6 +116,10 @@ const fetchAccountData = async (cleanHandle: string) => {
 };
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const payload =
       req.method === "POST" ? await req.json().catch(() => ({})) : {};
@@ -248,7 +259,7 @@ Deno.serve(async (req) => {
         results,
       }),
       {
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       },
     );
@@ -258,7 +269,7 @@ Deno.serve(async (req) => {
     console.error("Fatal function error:", errorMessage);
 
     return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
   }
