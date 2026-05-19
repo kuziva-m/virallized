@@ -28,6 +28,7 @@ const UpdateTargeting = lazy(
 );
 const Whitelist = lazy(() => import("./pages/onboarding/Whitelist"));
 const Add2FA = lazy(() => import("./pages/onboarding/Add2FA"));
+const AuditOffer = lazy(() => import("./pages/AuditOffer"));
 
 // Lazy-loaded private/auth/admin/agency pages
 const Login = lazy(() => import("./pages/Login"));
@@ -234,6 +235,8 @@ function App() {
           {/* Blog Pages */}
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
+          {/* Post-purchase upsell */}
+          <Route path="/audit-offer" element={<AuditOffer />} />
           {/* Onboarding Flow - Dynamic Pricing Routes */}
           <Route path="/set-up" element={<Setup />} />
           <Route path="/set-up-199" element={<Setup />} />
