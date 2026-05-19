@@ -46,34 +46,32 @@ const LandingPage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentReview, setCurrentReview] = useState(0);
 
-  // 🚨 ANALYZE TOOL STATES 🚨
-  const [analyzeHandle, setAnalyzeHandle] = useState("");
-  const [analyzeEmail, setAnalyzeEmail] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState("");
-  const [analyzeResults, setAnalyzeResults] = useState<{
-    handle: string;
-    email: string;
-    image: string;
-    followersRaw: number;
-    followersFormatted: string;
-    avgLikes: string;
-    avgComments: string;
-    engagementRate: string;
-    lostEngagement: string;
-    projectedWithUs: string;
-    projectedWithoutUs: string;
-    gainWithUs: string;
-    gainWithoutUs: string;
-    posts: { url: string; likes: number; isTop: boolean }[];
-    chartData: any[]; // 🚨 ADDED THIS LINE TO FIX THE ERROR 🚨
-  } | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
 
-  const toggleFaq = (index: number) => {
-    setActiveFaq(activeFaq === index ? null : index);
-  };
+  useEffect(() => {
+    const fetchPosts = async () => {
+      const { data, error } = await supabase
+        .from("blogs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(4);
 
-  const faqs = [
+      if (!error && data) {
+        const sortedData = data.sort((a, b) => {
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        });
+        setPosts(sortedData);
+      }
+    };
+    fetchPosts();
+  }, []);
+
+  const featuredPost = posts[0];
+  const standardPosts = posts.slice(1, 4);
+
+  const faqs: { q: string; a: string }[] = [
     {
       q: "How quickly will I start seeing followers?",
       a: "You’ll typically start seeing new followers within 24–72 hours of signing up. Growth ramps up gradually, and most accounts reach full speed within the first 5–7 days, depending on targeting and account activity.",
@@ -103,6 +101,32 @@ const LandingPage = () => {
       a: "No. Virallized never posts content, comments, or sends DMs on your behalf. Your content, voice, and interactions remain 100% yours — we simply help the right people discover your account organically.",
     },
   ];
+  // 🚨 ANALYZE TOOL STATES 🚨
+  const [analyzeHandle, setAnalyzeHandle] = useState("");
+  const [analyzeEmail, setAnalyzeEmail] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
+  const [analyzeResults, setAnalyzeResults] = useState<{
+    handle: string;
+    email: string;
+    image: string;
+    followersRaw: number;
+    followersFormatted: string;
+    avgLikes: string;
+    avgComments: string;
+    engagementRate: string;
+    lostEngagement: string;
+    projectedWithUs: string;
+    projectedWithoutUs: string;
+    gainWithUs: string;
+    gainWithoutUs: string;
+    posts: { url: string; likes: number; isTop: boolean }[];
+    chartData: any[];
+  } | null>(null);
+
+  const toggleFaq = (index: number) => {
+    setActiveFaq(activeFaq === index ? null : index);
+  };
 
   // Auto-scroll logic for the reviews carousel
   useEffect(() => {
@@ -496,9 +520,6 @@ const LandingPage = () => {
         engagementRate: number,
         hasPosts: boolean,
       ) => {
-        // Match the projection to the real pricing bands:
-        // Standard: 150-500/mo, Pro: 250-1,000/mo,
-        // Max: 500-2,000/mo, Managed: 750-3,000/mo.
         const planRange =
           followers < 5000
             ? { min: 150, max: 500 }
@@ -573,7 +594,6 @@ const LandingPage = () => {
         const withoutUsAtMonth = Math.floor(
           followerCount + gainWithoutUsNum * progress,
         );
-        // Exponential-looking acceleration: slower early growth, much stronger separation later.
         const curveFactor = Math.pow(progress, 1.85);
         const withUsAtMonth = Math.floor(
           followerCount + gainWithUsNum * curveFactor,
@@ -999,7 +1019,7 @@ const LandingPage = () => {
                   count: "4.6K Followers",
                   img: "erikagivens_art.avif",
                   link: "https://www.trustpilot.com/reviews/673ca91a93c0d26b15290133",
-                  text: "As a busy artist, I don’t have time for marketing or networking on social media, and Virallized has genuinely made that part easy. The growth hasn’t felt random at all - the outreach has been clearly targeted to the artistic styles and themes I specified, and I’ve connected with real artists who actually engage with my work. If you’re an artist looking to get out of your bubble and gain exposure within your field, I’d absolutely recommend Virallized.",
+                  text: "As a busy artist, I don't have time for marketing or networking on social media, and Virallized has genuinely made that part easy. The growth hasn't felt random at all - the outreach has been clearly targeted to the artistic styles and themes I specified, and I've connected with real artists who actually engage with my work. If you're an artist looking to get out of your bubble and gain exposure within your field, I'd absolutely recommend Virallized.",
                 },
                 {
                   name: "@thewellbeingchannel",
@@ -1013,14 +1033,14 @@ const LandingPage = () => {
                   count: "3.3K Followers",
                   img: "t3.avif",
                   link: "https://www.trustpilot.com/users/67f73d10959ac3801827cec6",
-                  text: "Virallized has been such a helpful service in growing my Instagram organically. I’ve seen a steady increase in followers who are genuinely interested in my content and actually stick around—no bots, just real engagement.",
+                  text: "Virallized has been such a helpful service in growing my Instagram organically. I've seen a steady increase in followers who are genuinely interested in my content and actually stick around—no bots, just real engagement.",
                 },
                 {
                   name: "@ashlie.m.smith",
                   count: "11.6K Followers",
                   img: "t1.avif",
                   link: "https://www.trustpilot.com/review/virallized.com",
-                  text: "Thank you Virallized!!!! You are THE go-to for social media growth + engagement! I love the results I’ve seen with you! Smart, FAST & personable. Your company packs a powerful punch and you’ve got huge hearts.",
+                  text: "Thank you Virallized!!!! You are THE go-to for social media growth + engagement! I love the results I've seen with you! Smart, FAST & personable. Your company packs a powerful punch and you've got huge hearts.",
                 },
                 {
                   name: "@savnhale",
@@ -1314,7 +1334,7 @@ const LandingPage = () => {
                   />
                 </h3>
                 <p className="text-[18px] lg:text-[21px] text-slate-600 mb-6 lg:mb-8 leading-relaxed">
-                  You’ll get thousands of new people seeing your page and
+                  You'll get thousands of new people seeing your page and
                   content, and what you have to offer.
                 </p>
                 <div className="flex flex-row items-center gap-4">
@@ -1966,7 +1986,6 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              {/* MANAGED PLAN DYNAMIC STRIPE LINK */}
               <a
                 href={
                   isAnnual
@@ -2039,7 +2058,6 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              {/* MAX PLAN DYNAMIC STRIPE LINK */}
               <a
                 href={
                   isAnnual
@@ -2120,7 +2138,6 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              {/* PRO PLAN DYNAMIC STRIPE LINK */}
               <a
                 href={
                   isAnnual
@@ -2211,7 +2228,6 @@ const LandingPage = () => {
                       </li>
                     ))}
               </ul>
-              {/* STANDARD PLAN DYNAMIC STRIPE LINK */}
               <a
                 href={
                   isAnnual
@@ -2252,123 +2268,109 @@ const LandingPage = () => {
             </Link>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6 lg:gap-8">
-            {/* LEFT: Featured Article */}
-            <Link
-              to="/blog/does-instagram-growth-actually-work-in-2026"
-              className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-col group cursor-pointer hover:shadow-md transition-shadow"
-            >
-              <img
-                src="/images/b1.avif"
-                alt="Does Instagram Growth Actually Work in 2026?"
-                className="w-full h-56 lg:h-[300px] object-cover"
-              />
-              <div className="p-6 lg:p-8 flex flex-col flex-1">
-                <div className="flex items-center gap-2 text-[15px] lg:text-[16px] text-slate-500 font-bold mb-3 uppercase tracking-wider">
-                  <img
-                    src="/images/calendar.png"
-                    alt="Date"
-                    className="w-4 lg:w-5"
-                  />{" "}
-                  January 02, 2026
-                </div>
-                <h3 className="text-[26px] lg:text-5xl font-black text-slate-900 mb-3 group-hover:text-[#f80d5d] transition-colors leading-tight">
-                  Does Instagram Growth Actually Work in 2026?
-                </h3>
-                <p className="text-slate-600 text-[17px] lg:text-[18px] mb-6 leading-relaxed">
-                  From Algorithm Myths to Real Growth: Instagram Strategies That
-                  Work in 2026
-                </p>
-                <div className="text-[#f80d5d] font-bold text-[17px] lg:text-[18px] flex items-center gap-2 mt-auto">
-                  Read More{" "}
-                  <span className="text-xl lg:text-[24px] group-hover:translate-x-1 transition-transform">
-                    →
-                  </span>
-                </div>
-              </div>
-            </Link>
-
-            {/* RIGHT: Stacked Standard Articles */}
-            <div className="flex flex-col gap-4 lg:gap-6">
-              {/* Stacked Article 1 */}
-              <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-row items-center group cursor-pointer hover:shadow-md transition-shadow p-3 lg:p-4 gap-4 lg:gap-6">
-                <img
-                  src="/images/b2.avif"
-                  alt="Is Organic Instagram Growth Better Than Ads?"
-                  className="w-24 h-24 lg:w-32 lg:h-32 object-cover rounded-xl shrink-0"
-                />
-                <div className="flex flex-col justify-center py-2 pr-2">
-                  <div className="flex items-center gap-2 text-[13px] lg:text-[15px] text-slate-500 font-bold mb-1.5 uppercase tracking-wider">
-                    <img
-                      src="/images/calendar.png"
-                      alt="Date"
-                      className="w-3.5 lg:w-4"
-                    />{" "}
-                    March 13, 2026
-                  </div>
-                  <h3 className="text-[18px] lg:text-[23px] font-black text-slate-900 mb-2 group-hover:text-[#f80d5d] transition-colors leading-snug">
-                    Is Organic Instagram Growth Better Than Ads?
-                  </h3>
-                  <div className="text-[#f80d5d] font-bold text-[15px] lg:text-[17px] flex items-center gap-1.5">
-                    Read More{" "}
-                    <span className="text-[18px] lg:text-[21px]">→</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stacked Article 2 */}
-              <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-row items-center group cursor-pointer hover:shadow-md transition-shadow p-3 lg:p-4 gap-4 lg:gap-6">
-                <img
-                  src="/images/b3.avif"
-                  alt="How Long Does Instagram Growth Actually Take?"
-                  className="w-24 h-24 lg:w-32 lg:h-32 object-cover rounded-xl shrink-0"
-                />
-                <div className="flex flex-col justify-center py-2 pr-2">
-                  <div className="flex items-center gap-2 text-[13px] lg:text-[15px] text-slate-500 font-bold mb-1.5 uppercase tracking-wider">
-                    <img
-                      src="/images/calendar.png"
-                      alt="Date"
-                      className="w-3.5 lg:w-4"
-                    />{" "}
-                    March 13, 2026
-                  </div>
-                  <h3 className="text-[18px] lg:text-[23px] font-black text-slate-900 mb-2 group-hover:text-[#f80d5d] transition-colors leading-snug">
-                    How Long Does Instagram Growth Actually Take?
-                  </h3>
-                  <div className="text-[#f80d5d] font-bold text-[15px] lg:text-[17px] flex items-center gap-1.5">
-                    Read More{" "}
-                    <span className="text-[18px] lg:text-[21px]">→</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stacked Article 3 */}
-              <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-row items-center group cursor-pointer hover:shadow-md transition-shadow p-3 lg:p-4 gap-4 lg:gap-6">
-                <img
-                  src="/images/b4.avif"
-                  alt="Instagram Growth Services Explained: What You Should Know"
-                  className="w-24 h-24 lg:w-32 lg:h-32 object-cover rounded-xl shrink-0"
-                />
-                <div className="flex flex-col justify-center py-2 pr-2">
-                  <div className="flex items-center gap-2 text-[13px] lg:text-[15px] text-slate-500 font-bold mb-1.5 uppercase tracking-wider">
-                    <img
-                      src="/images/calendar.png"
-                      alt="Date"
-                      className="w-3.5 lg:w-4"
-                    />{" "}
-                    March 13, 2026
-                  </div>
-                  <h3 className="text-[18px] lg:text-[23px] font-black text-slate-900 mb-2 group-hover:text-[#f80d5d] transition-colors leading-snug">
-                    Instagram Growth Services Explained: What You Should Know
-                  </h3>
-                  <div className="text-[#f80d5d] font-bold text-[15px] lg:text-[17px] flex items-center gap-1.5">
-                    Read More{" "}
-                    <span className="text-[18px] lg:text-[21px]">→</span>
-                  </div>
-                </div>
-              </div>
+          {posts.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+              <p className="text-slate-500 font-medium">
+                Loading latest articles...
+              </p>
             </div>
-          </div>
+          ) : (
+            <div className="grid lg:grid-cols-2 gap-6 lg:gap-8">
+              {/* LEFT: Featured Article */}
+              {featuredPost && (
+                <Link
+                  to={`/blog/${featuredPost.slug}`}
+                  className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-col group cursor-pointer hover:shadow-md transition-shadow"
+                >
+                  <div className="w-full h-56 lg:h-[300px] overflow-hidden relative">
+                    <img
+                      src={
+                        featuredPost.image_url || "/images/blog/placeholder.jpg"
+                      }
+                      alt={featuredPost.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
+                  </div>
+                  <div className="p-6 lg:p-8 flex flex-col flex-1">
+                    <div className="flex items-center gap-2 text-[15px] lg:text-[16px] text-slate-500 font-bold mb-3 uppercase tracking-wider">
+                      <img
+                        src="/images/calendar.png"
+                        alt="Date"
+                        className="w-4 lg:w-5"
+                      />{" "}
+                      {new Date(featuredPost.created_at).toLocaleDateString(
+                        undefined,
+                        {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        },
+                      )}
+                    </div>
+                    <h3 className="text-[26px] lg:text-4xl font-black text-slate-900 mb-3 group-hover:text-[#f80d5d] transition-colors leading-tight">
+                      {featuredPost.title}
+                    </h3>
+                    <p className="text-slate-600 text-[17px] lg:text-[18px] mb-6 leading-relaxed line-clamp-2">
+                      {featuredPost.excerpt}
+                    </p>
+                    <div className="text-[#f80d5d] font-bold text-[17px] lg:text-[18px] flex items-center gap-2 mt-auto">
+                      Read More{" "}
+                      <span className="text-xl lg:text-[24px] group-hover:translate-x-1 transition-transform">
+                        →
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              )}
+
+              {/* RIGHT: Stacked Standard Articles */}
+              {standardPosts.length > 0 && (
+                <div className="flex flex-col gap-4 lg:gap-6">
+                  {standardPosts.map((post) => (
+                    <Link
+                      key={post.id}
+                      to={`/blog/${post.slug}`}
+                      className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-row items-center group cursor-pointer hover:shadow-md transition-shadow p-3 lg:p-4 gap-4 lg:gap-6 h-full"
+                    >
+                      <div className="w-24 h-24 lg:w-32 lg:h-32 shrink-0 overflow-hidden rounded-xl relative">
+                        <img
+                          src={post.image_url || "/images/blog/placeholder.jpg"}
+                          alt={post.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                        />
+                      </div>
+                      <div className="flex flex-col justify-center py-2 pr-2">
+                        <div className="flex items-center gap-2 text-[12px] lg:text-[14px] text-slate-500 font-bold mb-1.5 uppercase tracking-wider">
+                          <img
+                            src="/images/calendar.png"
+                            alt="Date"
+                            className="w-3.5 lg:w-4"
+                          />{" "}
+                          {new Date(post.created_at).toLocaleDateString(
+                            undefined,
+                            {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            },
+                          )}
+                        </div>
+                        <h3 className="text-[17px] lg:text-[21px] font-black text-slate-900 mb-2 group-hover:text-[#f80d5d] transition-colors leading-snug line-clamp-2">
+                          {post.title}
+                        </h3>
+                        <div className="text-[#f80d5d] font-bold text-[14px] lg:text-[16px] flex items-center gap-1.5">
+                          Read More{" "}
+                          <span className="text-[18px] lg:text-[21px] group-hover:translate-x-1 transition-transform">
+                            →
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

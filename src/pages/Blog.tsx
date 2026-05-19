@@ -12,12 +12,20 @@ export default function Blog() {
       const { data, error } = await supabase
         .from("blogs")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }); // Fetch newest first
 
       if (error) {
         console.error("Error fetching blogs:", error);
       } else if (data) {
-        setPosts(data);
+        // 🚨 ADDED ROBUST CLIENT-SIDE SORTING 🚨
+        // This guarantees that even if Supabase returns them out of order,
+        // React will forcefully sort them so the newest date is always at index [0]
+        const sortedData = data.sort((a, b) => {
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        });
+        setPosts(sortedData);
       }
       setLoading(false);
     };

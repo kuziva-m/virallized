@@ -21,8 +21,10 @@ const Login = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { error, data: authData } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
       password,
     });
 
@@ -30,20 +32,53 @@ const Login = () => {
       alert("Invalid email or password. Please try again.");
       setIsSubmitting(false);
     } else {
-      // 🚨 SMART ROUTING: Check if they are an Admin, Blogger, or Client!
-      const { data: roleData } = await supabase
+      const user = authData.user;
+
+      if (!user) {
+        navigate("/dashboard");
+        return;
+      }
+
+      // SMART ROUTING: Check if they are an Admin, Blogger, Agency, or Client.
+
+      // 1. Check Admin Roles
+      const { data: roleData, error: roleError } = await supabase
         .from("admin_roles")
         .select("role")
-        .eq("email", email.toLowerCase())
-        .single();
+        .eq("email", normalizedEmail)
+        .maybeSingle();
+
+      if (roleError) {
+        console.error("Error checking admin role:", roleError);
+      }
 
       if (roleData?.role === "superadmin") {
         navigate("/admin");
+        return;
       } else if (roleData?.role === "blogger") {
         navigate("/blog-admin");
-      } else {
-        navigate("/dashboard"); // Regular Client
+        return;
       }
+
+      // 2. Check Agency Roles (🚨 BULLETPROOF FIX: Check strictly by email 🚨)
+      const { data: agencyData, error: agencyError } = await supabase
+        .from("agencies")
+        .select("email")
+        .eq("email", normalizedEmail)
+        .maybeSingle();
+
+      if (agencyError) {
+        console.error("Error checking agency role:", agencyError);
+      }
+
+      // If the email exists in the agencies table, send them to the Agency Hub
+      if (agencyData) {
+        navigate("/agency");
+        return;
+      }
+
+      // 3. Normal Client Fallback
+      navigate("/dashboard");
     }
   };
 

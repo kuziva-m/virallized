@@ -30,7 +30,7 @@ const Dashboard = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
-  // 🚨 NEW: 3-STRIKES LIMIT STATES 🚨
+  // 🚨 3-STRIKES LIMIT STATES 🚨
   const [updatesRemaining, setUpdatesRemaining] = useState(3);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -39,7 +39,7 @@ const Dashboard = () => {
     checkLimits(); // Run limit check on load
   }, []);
 
-  // 🚨 NEW: LIMIT ENGINE 🚨
+  // 🚨 LIMIT ENGINE 🚨
   const checkLimits = () => {
     const stored = localStorage.getItem("virallized_target_updates") || "[]";
     let timestamps: number[] = [];
@@ -290,18 +290,16 @@ const Dashboard = () => {
     `;
 
     try {
-      await fetch(
-        "https://qbxkdxfsfjyxtrpnsavu.supabase.co/functions/v1/send-email",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: "jay@virallized.com",
-            subject: `🔄 Strategy Update: @${cleanIgHandle}`,
-            html: emailHtml,
-          }),
+      // 🚨 FIXED: Now uses supabase.functions.invoke and calls "send-admin-alert" 🚨
+      const { error } = await supabase.functions.invoke("send-admin-alert", {
+        body: {
+          to: "jay@virallized.com",
+          subject: `🔄 Strategy Update: @${cleanIgHandle}`,
+          html: emailHtml,
         },
-      );
+      });
+
+      if (error) throw error;
 
       setHasUnsavedChanges(false);
       recordUpdate(); // 🚨 LOG THE STRIKE

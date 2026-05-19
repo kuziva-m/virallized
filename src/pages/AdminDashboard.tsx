@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
+import { CanceledLeadsTab } from "./CanceledLeadsTab";
 
 // --- INTERFACES ---
 interface Client {
@@ -54,7 +55,7 @@ interface AnalyzedAccount {
 }
 
 type AdminRole = "superadmin" | "blogger" | null;
-type DashboardTab = "clients" | "blogs" | "analyzed";
+type DashboardTab = "clients" | "blogs" | "analyzed" | "canceled";
 
 const AdminDashboard = () => {
   // --- AUTH & ROLE STATE ---
@@ -1395,6 +1396,19 @@ const AdminDashboard = () => {
             </button>
           )}
 
+          {adminRole === "superadmin" && (
+            <button
+              onClick={() => setActiveTab("canceled")}
+              className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
+                activeTab === "canceled"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+              }`}
+            >
+              Canceled Leads
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab("blogs")}
             className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
@@ -1746,6 +1760,11 @@ const AdminDashboard = () => {
               )}
             </div>
           </>
+        )}
+
+        {/* --- CANCELED LEADS TAB --- */}
+        {activeTab === "canceled" && adminRole === "superadmin" && (
+          <CanceledLeadsTab supabase={supabase} />
         )}
 
         {/* --- BLOGS TAB --- */}

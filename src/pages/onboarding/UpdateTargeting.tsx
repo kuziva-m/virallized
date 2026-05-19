@@ -25,7 +25,7 @@ const UpdateTargeting = () => {
   const [currentInput, setCurrentInput] = useState("");
   const [password, setPassword] = useState("");
 
-  // 🚨 NEW: 3-STRIKES LIMIT STATES 🚨
+  // 🚨 3-STRIKES LIMIT STATES 🚨
   const [updatesRemaining, setUpdatesRemaining] = useState(3);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -51,10 +51,9 @@ const UpdateTargeting = () => {
       setIsLoadingProfile(false);
     };
     fetchProfile();
-    checkLimits(); // Run limit check on load
+    checkLimits();
   }, []);
 
-  // 🚨 NEW: LIMIT ENGINE 🚨
   const checkLimits = () => {
     const stored = localStorage.getItem("virallized_target_updates") || "[]";
     let timestamps: number[] = [];
@@ -62,7 +61,6 @@ const UpdateTargeting = () => {
       timestamps = JSON.parse(stored);
     } catch (e) {}
 
-    // Filter to only count updates from the last 24 hours
     const now = Date.now();
     const last24h = timestamps.filter(
       (ts: number) => now - ts < 24 * 60 * 60 * 1000,
@@ -220,9 +218,10 @@ const UpdateTargeting = () => {
       `;
 
       try {
-        await supabase.functions.invoke("send-email", {
+        // 🚨 FIXED: Calling "send-admin-alert" so it goes to the correct edge function
+        await supabase.functions.invoke("send-admin-alert", {
           body: {
-            to: "jay@virallized.com",
+            to: "jay@virallized.com", // 🚨 FIXED: Sends specifically to Jay
             subject: emailSubject,
             html: finalHtml,
           },
@@ -231,7 +230,7 @@ const UpdateTargeting = () => {
         console.error("Failed to send update email:", emailErr);
       }
 
-      recordUpdate(); // 🚨 LOG THE STRIKE
+      recordUpdate();
 
       if (isStandalone) {
         setIsSuccess(true);
@@ -358,7 +357,6 @@ const UpdateTargeting = () => {
               </p>
             </div>
 
-            {/* 🚨 THE LIMIT NOTIFICATION BANNER 🚨 */}
             <div
               className={`mb-8 p-4 rounded-2xl border text-sm font-bold flex items-center gap-3 ${
                 isLocked

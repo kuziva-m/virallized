@@ -2,8 +2,7 @@ import { Helmet } from "react-helmet-async";
 
 const SITE_NAME = "Virallized";
 const SITE_URL = "https://www.virallized.com";
-const DEFAULT_TITLE =
-  "Get real, Organic Instagram followers";
+const DEFAULT_TITLE = "Get real, Organic Instagram followers";
 const DEFAULT_DESCRIPTION =
   "Grow your Instagram with Virallized organic Instagram growth services. Get real, targeted followers through safe, organic Instagram promotion without bots or fake followers.";
 const DEFAULT_IMAGE = `${SITE_URL}/images/og/virallized-og.jpg`;
@@ -60,7 +59,11 @@ const makeAbsoluteUrl = (value?: string) => {
 };
 
 const makeCanonicalUrl = (canonical?: string, path?: string) => {
-  const value = canonical || path || "/";
+  // If no canonical or path is provided, use the window pathname dynamically
+  // to prevent home page overrides across client pages
+  const fallbackPath =
+    typeof window !== "undefined" ? window.location.pathname : "/";
+  const value = canonical || path || fallbackPath;
   return makeAbsoluteUrl(value);
 };
 
@@ -91,7 +94,7 @@ export default function SEO({
   title = DEFAULT_TITLE,
   description = DEFAULT_DESCRIPTION,
   canonical,
-  path = "/",
+  path, // 🚨 Removed default "/" assignment so makeCanonicalUrl can read page route accurately
 
   noIndex = false,
   noFollow = false,

@@ -125,8 +125,8 @@ const LandingPage = () => {
           </div>
           {/* PROMO BANNER */}
           <div className="bg-[#f80d5d] text-white py-2.5 px-4 text-center text-[11px] md:text-[13px] font-bold tracking-wide relative z-50 shadow-sm">
-            🎉 New to Virallized? Get 50% Off Your First Month With Code "50OFF"
-            |{" "}
+            🎉 New to Virallized? Get 50% Off Your First Month With Code
+            "FIRSTMONTH" |{" "}
             <a
               href="#pricing"
               className="underline underline-offset-2 hover:text-[#ffefe9] transition-colors"

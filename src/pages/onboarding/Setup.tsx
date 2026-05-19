@@ -162,7 +162,6 @@ const Setup = () => {
     "/set-up-max-annual": "MAX Annual",
   };
 
-  // 🚨 FIXED: Force lowercase and strip trailing slashes to prevent mapping errors
   const cleanPath = location.pathname.toLowerCase().replace(/\/$/, "");
   const clientPlan = planMap[cleanPath] || "Unknown Plan";
 
@@ -181,6 +180,31 @@ const Setup = () => {
     setIsSubmitting(true);
 
     try {
+      const formattedHandle = igHandle.trim().startsWith("@")
+        ? igHandle.trim()
+        : `@${igHandle.trim()}`;
+
+      const cleanHandleForApi = formattedHandle.replace("@", "");
+      let realFollowers: number | null = null;
+
+      // 🚨 FAST FALLBACK: Check analyzed_accounts table instantly 🚨
+      try {
+        const { data: analyzedData } = await supabase
+          .from("analyzed_accounts")
+          .select("followers")
+          .eq("ig_handle", cleanHandleForApi)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (analyzedData?.followers) {
+          realFollowers = analyzedData.followers;
+        }
+      } catch (err) {
+        console.warn("Database fallback failed.", err);
+      }
+
+      // Proceed with Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -188,11 +212,9 @@ const Setup = () => {
 
       if (authError) throw authError;
 
-      const formattedHandle = igHandle.trim().startsWith("@")
-        ? igHandle.trim()
-        : `@${igHandle.trim()}`;
-
       if (authData.user) {
+        // Note: starting_followers might be null here if they didn't use the analyze tool.
+        // The relaxed database trigger will quietly handle this and inject a default number.
         const { error: dbError } = await supabase.from("clients").insert([
           {
             id: authData.user.id,
@@ -205,15 +227,13 @@ const Setup = () => {
             target_audience: idealFollower,
             goals: primaryGoal,
             plan: clientPlan,
+            starting_followers: realFollowers,
           },
         ]);
 
         if (dbError) throw dbError;
 
         // --- 0. RUN DAY 1 TRACKING IMMEDIATELY ---
-        // This creates the first growth_metrics row right after signup so the
-        // dashboard can show current followers on Day 1 instead of waiting for
-        // the midnight cron job.
         try {
           const { error: trackerError } = await supabase.functions.invoke(
             "daily-tracker",
@@ -231,7 +251,7 @@ const Setup = () => {
           console.error("Day 1 tracker crashed:", trackerErr);
         }
 
-        // --- 1. SEND ALERT TO JAY (ADMIN) ---
+        // --- 1. SEND ALERT TO ADMIN ---
         try {
           const adminEmailHtml = `
             <div style="font-family: sans-serif; padding: 25px; border: 1px solid #eee; border-radius: 12px; max-width: 600px;">
