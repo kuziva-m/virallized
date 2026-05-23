@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { toast } from "../lib/toast";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -29,7 +30,7 @@ const Login = () => {
     });
 
     if (error) {
-      alert("Invalid email or password. Please try again.");
+      toast.error("Invalid email or password. Please try again.");
       setIsSubmitting(false);
     } else {
       const user = authData.user;

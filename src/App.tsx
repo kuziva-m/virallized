@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
+import ToastContainer from "./components/ToastContainer";
 import {
   BrowserRouter,
   Routes,
@@ -20,6 +21,7 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const AgencyPricing = lazy(() => import("./pages/AgencyPricing")); // 🚨 NEW AGENCY PRICING PAGE
+const CreatorStudioPage = lazy(() => import("./pages/CreatorStudioPage"));
 
 // Lazy-loaded onboarding pages
 const Setup = lazy(() => import("./pages/onboarding/Setup"));
@@ -28,6 +30,7 @@ const UpdateTargeting = lazy(
 );
 const Whitelist = lazy(() => import("./pages/onboarding/Whitelist"));
 const Add2FA = lazy(() => import("./pages/onboarding/Add2FA"));
+const AuditOffer = lazy(() => import("./pages/AuditOffer"));
 
 // Lazy-loaded private/auth/admin/agency pages
 const Login = lazy(() => import("./pages/Login"));
@@ -36,6 +39,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const BlogAdmin = lazy(() => import("./pages/BlogAdmin"));
 const AgencyDashboard = lazy(() => import("./pages/AgencyDashboard")); // 🚨 NEW AGENCY HUB
+const ContentStudio = lazy(() => import("./pages/ContentStudio"));
 
 type RewardfulQueue = ((...args: any[]) => void) & {
   q?: IArguments[];
@@ -214,6 +218,7 @@ function RewardfulPromoTracker() {
 function App() {
   return (
     <BrowserRouter>
+      <ToastContainer />
       <RewardfulPromoTracker />
 
       <Suspense fallback={<PageFallback />}>
@@ -226,14 +231,16 @@ function App() {
             element={<InstagramGrowth50Off />}
           />
           <Route path="/50-off" element={<Off50 />} />
-          <Route path="/agency-pricing" element={<AgencyPricing />} />{" "}
-          {/* 🚨 NEW AGENCY PRICING */}
+          <Route path="/agency-pricing" element={<AgencyPricing />} />
+          <Route path="/creator-studio" element={<CreatorStudioPage />} />
           {/* Legal Pages */}
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           {/* Blog Pages */}
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
+          {/* Post-purchase upsell */}
+          <Route path="/audit-offer" element={<AuditOffer />} />
           {/* Onboarding Flow - Dynamic Pricing Routes */}
           <Route path="/set-up" element={<Setup />} />
           <Route path="/set-up-199" element={<Setup />} />
@@ -249,6 +256,8 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           {/* Agency Portal */}
           <Route path="/agency" element={<AgencyDashboard />} />
+          {/* Content Studio */}
+          <Route path="/content-studio" element={<ContentStudio />} />
           {/* Admin Portal */}
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/blog-admin" element={<BlogAdmin />} />

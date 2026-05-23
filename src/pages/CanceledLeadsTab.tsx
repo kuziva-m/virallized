@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "../lib/toast";
 
 interface CanceledLead {
   id: string;
@@ -266,7 +267,7 @@ export const CanceledLeadsTab = ({ supabase }: { supabase: any }) => {
       }
 
       if (headerIdx === -1) {
-        alert(
+        toast.error(
           "Could not find a 'Username' or 'IG Handle' column in the CSV. Please check the file formatting.",
         );
         setIsImporting(false);
@@ -370,10 +371,10 @@ export const CanceledLeadsTab = ({ supabase }: { supabase: any }) => {
           importedCount += chunk.length;
         }
 
-        alert(`Successfully imported/updated ${importedCount} leads!`);
+        toast.success(`Successfully imported/updated ${importedCount} leads!`);
         fetchLeads();
       } catch (err: any) {
-        alert("Error importing leads: " + err.message);
+        toast.error("Error importing leads: " + err.message);
       } finally {
         setIsImporting(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -394,7 +395,7 @@ export const CanceledLeadsTab = ({ supabase }: { supabase: any }) => {
       .trim();
 
     if (!cleanUsername) {
-      alert("Instagram handle is required.");
+      toast.info("Instagram handle is required.");
       setIsSavingManual(false);
       return;
     }
@@ -414,12 +415,12 @@ export const CanceledLeadsTab = ({ supabase }: { supabase: any }) => {
 
       if (error) throw error;
 
-      alert(`Successfully added lead @${cleanUsername}!`);
+      toast.success(`Successfully added lead @${cleanUsername}!`);
       setIsManualAddOpen(false);
       setManualForm({ username: "", email: "", name: "", setup_date: "" });
       fetchLeads(); // Refresh table
     } catch (err: any) {
-      alert("Failed to add lead: " + err.message);
+      toast.error("Failed to add lead: " + err.message);
     } finally {
       setIsSavingManual(false);
     }
@@ -471,7 +472,7 @@ export const CanceledLeadsTab = ({ supabase }: { supabase: any }) => {
       .slice(0, BATCH_SIZE);
 
     if (eligibleLeads.length === 0) {
-      alert("No eligible leads remaining to email!");
+      toast.info("No eligible leads remaining to email!");
       return;
     }
 
@@ -491,7 +492,7 @@ export const CanceledLeadsTab = ({ supabase }: { supabase: any }) => {
     }
 
     setIsSendingBatch(false);
-    alert(`Batch complete! Successfully sent ${successCount} emails.`);
+    toast.success(`Batch complete! Successfully sent ${successCount} emails.`);
   };
 
   const toggleUnsubscribe = async (lead: CanceledLead) => {
@@ -539,7 +540,7 @@ export const CanceledLeadsTab = ({ supabase }: { supabase: any }) => {
     if (!error) {
       setLeads((prev) => prev.filter((l) => l.id !== lead.id));
     } else {
-      alert("Failed to delete lead: " + error.message);
+      toast.error("Failed to delete lead: " + error.message);
     }
   };
 

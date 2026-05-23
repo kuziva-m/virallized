@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
+import { toast } from "../../lib/toast";
 
 const steps = [
   { label: "Set up", path: "/set-up", active: false },
@@ -64,7 +65,7 @@ const Whitelist = () => {
     if (!whitelistItems.includes(formattedHandle)) {
       setWhitelistItems([...whitelistItems, formattedHandle]);
     } else {
-      alert("This account is already in your list.");
+      toast.info("This account is already in your list.");
     }
 
     setCurrentInput("");
@@ -78,7 +79,7 @@ const Whitelist = () => {
 
   const handleSubmit = async () => {
     if (!handle.trim()) {
-      alert("Please enter your Instagram Username.");
+      toast.info("Please enter your Instagram Username.");
       return;
     }
 
@@ -131,9 +132,9 @@ const Whitelist = () => {
         existingClient.ig_handle?.replace(/^@/, "").trim() || cleanSearchHandle;
 
       const formattedWhitelist = whitelistItems
-        .map((item) => item.trim().replace(/^@/, ""))
+        .map((item) => "@" + item.trim().replace(/^@/, ""))
         .filter(Boolean)
-        .join(", ");
+        .join("\n");
 
       const whitelistRows = whitelistItems
         .map((item) => {
@@ -218,9 +219,10 @@ const Whitelist = () => {
                 </p>
               </div>
 
-              <p style="margin: 22px 0 0 0; font-size: 13px; color: #64748b; line-height: 1.5;">
-                Raw whitelist: <span style="font-family: monospace; color: #0f172a;">${formattedWhitelist}</span>
-              </p>
+              <div style="margin: 22px 0 0 0; background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px;">
+                <p style="margin: 0 0 8px 0; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em;">Copy-paste list</p>
+                <pre style="margin: 0; font-family: monospace; font-size: 14px; color: #0f172a; white-space: pre; line-height: 1.8;">${formattedWhitelist}</pre>
+              </div>
             </div>
           </div>
         </div>
@@ -245,7 +247,7 @@ const Whitelist = () => {
       }
     } catch (error: any) {
       console.error("Error updating whitelist:", error);
-      alert(error.message || "There was an issue saving your whitelist.");
+      toast.error(error.message || "There was an issue saving your whitelist.");
     } finally {
       setIsSubmitting(false);
     }
