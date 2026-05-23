@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
+import { toast } from "../../lib/toast";
 
 const steps = [
   { label: "Set up", path: "/set-up", active: false },
@@ -99,7 +100,7 @@ const UpdateTargeting = () => {
     if (!targetItems.some((item) => item.split(":")[0] === formattedHandle)) {
       setTargetItems([...targetItems, formattedHandle]);
     } else {
-      alert("This account is already in your list.");
+      toast.info("This account is already in your list.");
     }
     setCurrentInput("");
   };
@@ -110,7 +111,7 @@ const UpdateTargeting = () => {
 
   const handleSubmit = async () => {
     if (!handle.trim()) {
-      alert("Please enter your Instagram Username.");
+      toast.info("Please enter your Instagram Username.");
       return;
     }
 
@@ -238,7 +239,7 @@ const UpdateTargeting = () => {
         navigate("/add-2fa");
       }
     } catch (error: any) {
-      alert(error.message || "An error occurred. Please try again.");
+      toast.error(error.message || "An error occurred. Please try again.");
       setIsSubmitting(false);
     }
   };

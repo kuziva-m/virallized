@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { toast } from "../lib/toast";
+import { Layers, Sparkles, Wand2, Search, Users, FileText, Zap, Palette, ArrowRight } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -19,18 +21,10 @@ const formatNum = (num: number) => {
   return num.toString();
 };
 
-// Helper for small engagement rates so 0.03% does not display as 0.0%
 const formatEngagementRate = (rate: number) => {
-  if (!Number.isFinite(rate)) return "0.00";
-
-  if (rate > 0 && rate < 0.1) {
-    return rate.toFixed(2);
-  }
-
-  if (rate < 1) {
-    return rate.toFixed(2);
-  }
-
+  if (!Number.isFinite(rate) || rate <= 0) return "0.00";
+  if (rate < 0.01) return "< 0.01";
+  if (rate < 1)    return rate.toFixed(2);
   return rate.toFixed(1);
 };
 
@@ -40,11 +34,47 @@ const isValidEmail = (value: string) => {
 
 const ANALYZED_POST_LIMIT = 3;
 
+const PRICE_IDS = {
+  managed:  { monthly: "price_1R0F38HDWey36HYKtwtJBQWg", annual: "price_1R0F3mHDWey36HYKpxmw10D4" },
+  max:      { monthly: "price_1NaRdbHDWey36HYKnrjdmjlL", annual: "price_1NddRPHDWey36HYKNyQfnD8X" },
+  pro:      { monthly: "price_1LtxxXHDWey36HYK9u5kfjGV", annual: "price_1NddgwHDWey36HYKRqQTb9YA" },
+  standard: { monthly: "price_1IbUHGHDWey36HYKtX574WCZ", annual: "price_1NddgCHDWey36HYKv6txlP5o" },
+};
+
 const LandingPage = () => {
   const [isAnnual, setIsAnnual] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentReview, setCurrentReview] = useState(0);
+  const [includeAudit, setIncludeAudit] = useState(false);
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+
+  const handleCheckout = async (priceId: string) => {
+    setIsCheckoutLoading(true);
+    try {
+      const res = await fetch(
+        "https://qbxkdxfsfjyxtrpnsavu.supabase.co/functions/v1/create-checkout",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ priceId, includeAudit, referralId: (window as any).Rewardful?.referral }),
+        }
+      );
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setIsCheckoutLoading(false);
+    }
+  };
 
   const [posts, setPosts] = useState<any[]>([]);
 
@@ -183,7 +213,14 @@ const LandingPage = () => {
     const toArray = (value: any): any[] => {
       if (!value) return [];
       if (Array.isArray(value)) return value;
-      if (typeof value === "object") return Object.values(value);
+      // Only treat a plain object as a keyed post collection if all its keys are numeric
+      // (e.g. {"0": {...}, "1": {...}}). Avoid converting arbitrary response objects.
+      if (typeof value === "object") {
+        const keys = Object.keys(value);
+        if (keys.length > 0 && keys.every((k) => /^\d+$/.test(k))) {
+          return Object.values(value);
+        }
+      }
       return [];
     };
 
@@ -265,6 +302,14 @@ const LandingPage = () => {
       profileData: any,
       userObj: any,
     ): any[] => {
+      // Fast path: confirmed API shape { posts: [{ node: { like_count, ... } }] }
+      if (Array.isArray(postsData?.posts) && postsData.posts.length > 0) {
+        const nodes = postsData.posts
+          .map((p: any) => p?.node ?? p)
+          .filter((p: any) => p && typeof p === "object");
+        if (nodes.length > 0) return nodes;
+      }
+
       const possibleSources = [
         postsData?.data?.items,
         postsData?.items,
@@ -700,22 +745,15 @@ const LandingPage = () => {
               />
             </Link>
             {/* NAVIGATION LINKS - FONT INCREASED ~30% */}
-            <div className="hidden md:flex gap-6 font-medium text-slate-600 text-[13px] lg:text-[14.5px]">
-              <a
-                href="#how-it-works"
-                className="hover:text-blue-600 transition"
-              >
-                How it works
-              </a>
-              <a href="#pricing" className="hover:text-blue-600 transition">
-                Pricing
-              </a>
-              <a href="/blog" className="hover:text-blue-600 transition">
-                Blog
-              </a>
-              <a href="#pricing" className="hover:text-blue-600 transition">
-                Get Started
-              </a>
+            <div className="hidden md:flex gap-6 font-medium text-slate-600 text-[13px] lg:text-[14.5px] items-center">
+              <a href="#how-it-works" className="hover:text-blue-600 transition">How it works</a>
+              <a href="#pricing" className="hover:text-blue-600 transition">Pricing</a>
+              <Link to="/creator-studio" className="hover:text-[#f80d5d] transition flex items-center gap-1.5 font-bold text-slate-800">
+                Creator Studio
+                <span className="text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white px-1.5 py-0.5 rounded-full leading-none">New</span>
+              </Link>
+              <a href="/blog" className="hover:text-blue-600 transition">Blog</a>
+              <a href="#pricing" className="hover:text-blue-600 transition">Get Started</a>
             </div>
           </div>
 
@@ -791,6 +829,14 @@ const LandingPage = () => {
                 className="text-slate-800 font-extrabold text-lg tracking-tight hover:text-[#ff2429] transition-colors"
               >
                 Pricing
+              </a>
+              <a
+                href="#creator-studio"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-2 text-slate-900 font-extrabold text-lg tracking-tight hover:text-[#f80d5d] transition-colors"
+              >
+                Creator Studio
+                <span className="text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white px-2 py-0.5 rounded-full">New</span>
               </a>
               <a
                 href="/blog"
@@ -1873,9 +1919,90 @@ const LandingPage = () => {
         )}
       </section>
 
+      {/* ── CREATOR STUDIO TEASER ────────────────────────────────────────────── */}
+      <section id="creator-studio" className="py-20 lg:py-24 bg-white border-t border-slate-100">
+        <div className="container mx-auto px-6 max-w-[90rem]">
+          <div className="max-w-5xl mx-auto bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] px-8 py-14 lg:px-16 lg:py-16 relative overflow-hidden shadow-2xl">
+            {/* Glow orbs */}
+            <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full bg-gradient-to-br from-[#ffae07]/20 via-[#ff2429]/15 to-[#f1078d]/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-gradient-to-tr from-[#f1078d]/15 to-[#ffae07]/10 blur-3xl" />
+
+            <div className="relative flex flex-col lg:flex-row items-center lg:items-start gap-10 lg:gap-16">
+              {/* Left */}
+              <div className="flex-1 text-center lg:text-left">
+                <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full mb-5">
+                  <Sparkles size={11} /> Introducing Creator Studio
+                  <span className="bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white text-[9px] font-black px-2 py-0.5 rounded-full">New</span>
+                </div>
+                <h2 className="text-3xl md:text-4xl lg:text-[2.75rem] font-black text-white leading-tight tracking-tight mb-5">
+                  Your growth is handled.<br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d]">Now make content to match.</span>
+                </h2>
+                <p className="text-slate-400 text-base lg:text-lg leading-relaxed mb-8 max-w-lg">
+                  AI carousels, posts, blog articles and competitor intelligence — generated in seconds, always on-brand. Built specifically for Instagram growth accounts.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+                  <Link
+                    to="/creator-studio"
+                    className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white px-7 py-3.5 rounded-2xl font-black text-sm shadow-xl shadow-[#ff2429]/30 hover:opacity-90 transition-opacity"
+                  >
+                    See plans &amp; pricing <ArrowRight size={15} />
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white px-7 py-3.5 rounded-2xl font-bold text-sm hover:bg-white/15 transition-colors"
+                  >
+                    Log in to access →
+                  </Link>
+                </div>
+                <p className="mt-4 text-slate-500 text-xs font-medium">
+                  7-day free trial · 3 free generations · no charge today
+                </p>
+              </div>
+
+              {/* Right — feature pills */}
+              <div className="grid grid-cols-2 gap-3 shrink-0 w-full lg:w-auto lg:max-w-xs">
+                {[
+                  { icon: Layers,   label: "Branded Carousels" },
+                  { icon: Sparkles, label: "AI Carousels" },
+                  { icon: Wand2,    label: "AI Posts" },
+                  { icon: Search,   label: "Content Research" },
+                  { icon: Users,    label: "Competitor Analysis" },
+                  { icon: FileText, label: "Blog Articles" },
+                  { icon: Zap,      label: "Image Generator" },
+                  { icon: Palette,  label: "Brand Kit" },
+                ].map(({ icon: Icon, label }) => (
+                  <div key={label} className="flex items-center gap-2.5 bg-white/8 border border-white/10 rounded-xl px-3 py-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#ffae07]/30 to-[#f1078d]/30 flex items-center justify-center shrink-0">
+                      <Icon size={12} className="text-white" />
+                    </div>
+                    <span className="text-white text-xs font-bold leading-tight">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* PRICING */}
       <section id="pricing" className="py-20 lg:py-24 bg-[#fafafa]">
         <div className="container mx-auto px-6 max-w-[90rem]">
+          {/* Agency banner */}
+          <div className="flex justify-center mb-10">
+            <Link
+              to="/agency-pricing"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-[#f80d5d]/30 transition-all group"
+            >
+              <span className="text-sm font-semibold text-slate-500 group-hover:text-slate-700 transition-colors">
+                Are you an agency looking to grow your clients?
+              </span>
+              <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] whitespace-nowrap">
+                Click here →
+              </span>
+            </Link>
+          </div>
+
           <div className="text-center mb-14 lg:mb-16">
             <div className="inline-block font-bold text-[15px] lg:text-[16px] uppercase tracking-wider mb-6">
               🚀{" "}
@@ -1921,6 +2048,7 @@ const LandingPage = () => {
                 unhappy
               </div>
             )}
+
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -1986,16 +2114,41 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              <a
-                href={
-                  isAnnual
-                    ? "https://buy.stripe.com/aEU5mc9yV6ZDgZq00g"
-                    : "https://buy.stripe.com/9AQbKAaCZ6ZD4cE3cr"
-                }
-                className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200"
+              <label className="relative flex items-center gap-2.5 mb-3 cursor-pointer select-none group">
+                <div className="relative shrink-0">
+                  <input type="checkbox" className="sr-only" checked={includeAudit} onChange={(e) => setIncludeAudit(e.target.checked)} />
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${includeAudit ? "bg-[#f80d5d] border-[#f80d5d]" : "border-slate-300 bg-white group-hover:border-[#f80d5d]"}`}>
+                    {includeAudit && <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                </div>
+                <span className="text-[13px] font-semibold leading-tight text-transparent bg-clip-text bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d]">
+                  Add Strategy Audit +$79
+                </span>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); document.getElementById("audit-section")?.scrollIntoView({ behavior: "smooth" }); }}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-[#f80d5d] underline underline-offset-2 transition-colors"
+                >
+                  Learn more
+                </button>
+                <div className="absolute bottom-full left-0 mb-2 w-60 bg-slate-900 text-white rounded-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-xl">
+                  <p className="font-bold text-[12px] mb-1.5">What's included:</p>
+                  <ul className="space-y-1 text-[11px] text-slate-300">
+                    <li>· Bio & profile optimisation</li>
+                    <li>· Content & reels strategy</li>
+                    <li>· Growth & engagement analysis</li>
+                    <li>· Competitor breakdown</li>
+                    <li>· Custom 30-day action plan</li>
+                  </ul>
+                  <p className="text-slate-400 text-[11px] mt-2">Branded PDF delivered within 48hrs</p>
+                </div>
+              </label>
+              <button
+                onClick={() => handleCheckout(isAnnual ? PRICE_IDS.managed.annual : PRICE_IDS.managed.monthly)}
+                disabled={isCheckoutLoading}
+                className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Start my growth
-              </a>
+                {isCheckoutLoading ? "Loading..." : "Start my growth"}
+              </button>
             </div>
 
             {/* MAX PLAN */}
@@ -2058,16 +2211,41 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              <a
-                href={
-                  isAnnual
-                    ? "https://buy.stripe.com/7sI3e48uR1Fj10s14b"
-                    : "https://buy.stripe.com/6oE7uk7qN1Fj7oQ28d"
-                }
-                className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200"
+              <label className="relative flex items-center gap-2.5 mb-3 cursor-pointer select-none group">
+                <div className="relative shrink-0">
+                  <input type="checkbox" className="sr-only" checked={includeAudit} onChange={(e) => setIncludeAudit(e.target.checked)} />
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${includeAudit ? "bg-[#f80d5d] border-[#f80d5d]" : "border-slate-300 bg-white group-hover:border-[#f80d5d]"}`}>
+                    {includeAudit && <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                </div>
+                <span className="text-[13px] font-semibold leading-tight text-transparent bg-clip-text bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d]">
+                  Add Strategy Audit +$79
+                </span>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); document.getElementById("audit-section")?.scrollIntoView({ behavior: "smooth" }); }}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-[#f80d5d] underline underline-offset-2 transition-colors"
+                >
+                  Learn more
+                </button>
+                <div className="absolute bottom-full left-0 mb-2 w-60 bg-slate-900 text-white rounded-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-xl">
+                  <p className="font-bold text-[12px] mb-1.5">What's included:</p>
+                  <ul className="space-y-1 text-[11px] text-slate-300">
+                    <li>· Bio & profile optimisation</li>
+                    <li>· Content & reels strategy</li>
+                    <li>· Growth & engagement analysis</li>
+                    <li>· Competitor breakdown</li>
+                    <li>· Custom 30-day action plan</li>
+                  </ul>
+                  <p className="text-slate-400 text-[11px] mt-2">Branded PDF delivered within 48hrs</p>
+                </div>
+              </label>
+              <button
+                onClick={() => handleCheckout(isAnnual ? PRICE_IDS.max.annual : PRICE_IDS.max.monthly)}
+                disabled={isCheckoutLoading}
+                className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Start my growth
-              </a>
+                {isCheckoutLoading ? "Loading..." : "Start my growth"}
+              </button>
             </div>
 
             {/* PRO PLAN (HIGHLIGHTED - FULL GRADIENT) */}
@@ -2138,16 +2316,41 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              <a
-                href={
-                  isAnnual
-                    ? "https://buy.stripe.com/28odSIh1n1Fj8sUfZ6"
-                    : "https://buy.stripe.com/6oE7uk5iFdo14cEfYY"
-                }
-                className="w-full text-center bg-white text-[#ff2429] py-3.5 rounded-xl font-black hover:bg-slate-50 transition-colors text-[17px] shadow-lg"
+              <label className="relative flex items-center gap-2.5 mb-3 cursor-pointer select-none group">
+                <div className="relative shrink-0">
+                  <input type="checkbox" className="sr-only" checked={includeAudit} onChange={(e) => setIncludeAudit(e.target.checked)} />
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${includeAudit ? "bg-white border-white" : "border-white/50 bg-white/10 group-hover:border-white"}`}>
+                    {includeAudit && <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4 7L10 1" stroke="#ff2429" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                </div>
+                <span className="text-[13px] font-semibold text-white leading-tight">
+                  Add Strategy Audit <span className="text-yellow-300">+$79</span>
+                </span>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); document.getElementById("audit-section")?.scrollIntoView({ behavior: "smooth" }); }}
+                  className="text-[11px] font-semibold text-white/50 hover:text-white underline underline-offset-2 transition-colors"
+                >
+                  Learn more
+                </button>
+                <div className="absolute bottom-full left-0 mb-2 w-60 bg-slate-900 text-white rounded-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-xl">
+                  <p className="font-bold text-[12px] mb-1.5">What's included:</p>
+                  <ul className="space-y-1 text-[11px] text-slate-300">
+                    <li>· Bio & profile optimisation</li>
+                    <li>· Content & reels strategy</li>
+                    <li>· Growth & engagement analysis</li>
+                    <li>· Competitor breakdown</li>
+                    <li>· Custom 30-day action plan</li>
+                  </ul>
+                  <p className="text-slate-400 text-[11px] mt-2">Branded PDF delivered within 48hrs</p>
+                </div>
+              </label>
+              <button
+                onClick={() => handleCheckout(isAnnual ? PRICE_IDS.pro.annual : PRICE_IDS.pro.monthly)}
+                disabled={isCheckoutLoading}
+                className="w-full text-center bg-white text-[#ff2429] py-3.5 rounded-xl font-black hover:bg-slate-50 transition-colors text-[17px] shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Start my growth
-              </a>
+                {isCheckoutLoading ? "Loading..." : "Start my growth"}
+              </button>
             </div>
 
             {/* STANDARD PLAN */}
@@ -2228,22 +2431,111 @@ const LandingPage = () => {
                       </li>
                     ))}
               </ul>
-              <a
-                href={
-                  isAnnual
-                    ? "https://buy.stripe.com/8wM8yo4eBfw9bF614d"
-                    : "https://buy.stripe.com/aEUeWMbH3fw9cJa7st"
-                }
-                className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200 mt-auto"
+              <label className="relative flex items-center gap-2.5 mb-3 cursor-pointer select-none group">
+                <div className="relative shrink-0">
+                  <input type="checkbox" className="sr-only" checked={includeAudit} onChange={(e) => setIncludeAudit(e.target.checked)} />
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${includeAudit ? "bg-[#f80d5d] border-[#f80d5d]" : "border-slate-300 bg-white group-hover:border-[#f80d5d]"}`}>
+                    {includeAudit && <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                </div>
+                <span className="text-[13px] font-semibold leading-tight text-transparent bg-clip-text bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d]">
+                  Add Strategy Audit +$79
+                </span>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); document.getElementById("audit-section")?.scrollIntoView({ behavior: "smooth" }); }}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-[#f80d5d] underline underline-offset-2 transition-colors"
+                >
+                  Learn more
+                </button>
+                <div className="absolute bottom-full left-0 mb-2 w-60 bg-slate-900 text-white rounded-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-xl">
+                  <p className="font-bold text-[12px] mb-1.5">What's included:</p>
+                  <ul className="space-y-1 text-[11px] text-slate-300">
+                    <li>· Bio & profile optimisation</li>
+                    <li>· Content & reels strategy</li>
+                    <li>· Growth & engagement analysis</li>
+                    <li>· Competitor breakdown</li>
+                    <li>· Custom 30-day action plan</li>
+                  </ul>
+                  <p className="text-slate-400 text-[11px] mt-2">Branded PDF delivered within 48hrs</p>
+                </div>
+              </label>
+              <button
+                onClick={() => handleCheckout(isAnnual ? PRICE_IDS.standard.annual : PRICE_IDS.standard.monthly)}
+                disabled={isCheckoutLoading}
+                className="w-full text-center bg-slate-100 text-slate-900 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors text-[17px] border border-slate-200 mt-auto disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Start my growth
-              </a>
+                {isCheckoutLoading ? "Loading..." : "Start my growth"}
+              </button>
             </div>
           </div>
-          <p className="text-center text-slate-500 mt-10 text-[15px] lg:text-[16px] font-medium mb-12">
+          <p className="text-center text-slate-500 mt-10 text-[15px] lg:text-[16px] font-medium mb-0">
             * Listed growth figures based on avg. client results. Results may
             vary depending on your niche and content
           </p>
+        </div>
+      </section>
+
+      {/* AUDIT SECTION */}
+      <section id="audit-section" className="py-10 lg:py-12 bg-[#fafafa]">
+        <div className="container mx-auto px-6 max-w-6xl">
+          <div className="relative rounded-[2rem] overflow-hidden bg-white border border-slate-200 shadow-sm">
+            {/* Gradient top bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d]" />
+
+            <div className="p-8 lg:p-12">
+              <div className="flex flex-col lg:flex-row gap-10 lg:gap-16 items-start">
+
+                {/* Left — headline + description + CTA */}
+                <div className="flex-1 min-w-0">
+                  <div className="inline-block text-[13px] font-bold uppercase tracking-widest text-[#f80d5d] mb-4">
+                    One-Time Add-On · $79
+                  </div>
+                  <h2 className="text-[28px] lg:text-[38px] font-black text-slate-900 leading-tight mb-4 tracking-tight">
+                    Instagram Strategy Audit
+                  </h2>
+                  <p className="text-slate-500 text-[16px] lg:text-[17px] font-medium leading-relaxed mb-6 max-w-lg">
+                    A deep dive into your entire page to uncover exactly what's helping your growth — and what's holding it back. Delivered as a clean branded PDF within 48 hours.
+                  </p>
+                  <button
+                    onClick={() => {
+                      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+                      setTimeout(() => setIncludeAudit(true), 600);
+                    }}
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white font-bold px-6 py-3 rounded-xl text-[16px] hover:opacity-90 transition-opacity shadow-md"
+                  >
+                    Add to my plan
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                </div>
+
+                {/* Right — what we audit */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-bold uppercase tracking-widest text-slate-400 mb-4">What we audit</p>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                    {[
+                      "Bio & profile setup",
+                      "Content strategy",
+                      "Audience & engagement",
+                      "Branding & relatability",
+                      "Visibility & discoverability",
+                      "Reels performance",
+                      "Growth patterns & analytics",
+                      "Competitor & market analysis",
+                      "Conversion & monetisation",
+                      "Visual branding audit",
+                      "Custom 30-day action plan",
+                    ].map((item) => (
+                      <li key={item} className="flex items-center gap-2.5 text-[15px] font-semibold text-slate-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-[#ff2429] to-[#f1078d] shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

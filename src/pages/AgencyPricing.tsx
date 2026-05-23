@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import { supabase } from "../lib/supabase";
+import { toast } from "../lib/toast";
 
 const AgencyPricing = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,7 +35,32 @@ const AgencyPricing = () => {
     setIsSubmitting(true);
 
     try {
-      // 1. Send the application alert to the admin
+      // 1. Save application to agencies table
+      const { error: dbError } = await supabase.from("agencies").insert([
+        {
+          company_name: formData.agencyName,
+          contact_name: formData.contactName,
+          email: formData.email,
+          website: formData.website,
+          ig_handle: formData.igHandle.replace(/^@/, ""),
+          notes: [
+            `Starting accounts: ${formData.startingAccounts}`,
+            `Expected (3mo): ${formData.expectedAccounts}`,
+            `Plans: ${formData.interestedPlans.join(", ") || "None selected"}`,
+            `Needs local: ${formData.needsLocal ? "Yes" : "No"}`,
+            formData.notes ? `Notes: ${formData.notes}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          status: "pending",
+        },
+      ]);
+
+      if (dbError) {
+        console.error("DB insert error:", dbError);
+      }
+
+      // 2. Send the application alert to the admin
       const emailHtml = `
         <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
           <h2>🚀 New Agency Application</h2>
@@ -61,7 +87,7 @@ const AgencyPricing = () => {
 
       setIsSuccess(true);
     } catch (error) {
-      alert(
+      toast.error(
         "Something went wrong submitting your application. Please email support@virallized.com directly.",
       );
       console.error(error);

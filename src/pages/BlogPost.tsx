@@ -77,6 +77,20 @@ export default function BlogPost() {
   // 🚨 Intercept the text and destroy the non-breaking spaces from Quill
   const cleanContent = (post.content || "").replace(/&nbsp;/g, " ");
 
+  // ── Full-page HTML post: bypass React wrapper and render the entire template ──
+  if (cleanContent.trim().startsWith("<!DOCTYPE html>") || cleanContent.trim().startsWith("<!DOCTYPE HTML>")) {
+    // Inject <base target="_top"> so every link navigates the parent window, not the iframe
+    const injected = cleanContent.replace(/<head([^>]*)>/i, "<head$1><base target=\"_top\">");
+    return (
+      <iframe
+        srcDoc={injected}
+        title={post.title}
+        style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", border: "none", zIndex: 9999 }}
+        sandbox="allow-same-origin allow-popups allow-top-navigation allow-top-navigation-by-user-activation"
+      />
+    );
+  }
+
   return (
     <>
       <SEO

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
+import { toast } from "../../lib/toast";
 
 const steps = [
   { label: "Set up", path: "/set-up", active: true },
@@ -173,7 +174,7 @@ const Setup = () => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      alert("Passwords do not match. Please try again.");
+      toast.error("Passwords do not match. Please try again.");
       return;
     }
 
@@ -233,23 +234,6 @@ const Setup = () => {
 
         if (dbError) throw dbError;
 
-        // --- 0. RUN DAY 1 TRACKING IMMEDIATELY ---
-        try {
-          const { error: trackerError } = await supabase.functions.invoke(
-            "daily-tracker",
-            {
-              body: {
-                clientId: authData.user.id,
-              },
-            },
-          );
-
-          if (trackerError) {
-            console.error("Day 1 tracker failed:", trackerError);
-          }
-        } catch (trackerErr) {
-          console.error("Day 1 tracker crashed:", trackerErr);
-        }
 
         // --- 1. SEND ALERT TO ADMIN ---
         try {
@@ -334,9 +318,12 @@ const Setup = () => {
         }
       }
 
+      if (typeof (window as any).rewardful === "function") {
+        (window as any).rewardful("convert", { email });
+      }
       navigate("/update-targeting", { state: { fromSetup: true } });
     } catch (error: any) {
-      alert(error.message || "An error occurred creating your account.");
+      toast.error(error.message || "An error occurred creating your account.");
     } finally {
       setIsSubmitting(false);
     }

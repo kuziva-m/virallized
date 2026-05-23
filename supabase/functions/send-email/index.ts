@@ -83,6 +83,7 @@ Deno.serve(async (req) => {
         subject,
         html,
         reply_to = "support@virallized.com",
+        attachments,
       } = payload;
 
       // SCENARIO A: Batch / mass broadcast
@@ -132,6 +133,7 @@ Deno.serve(async (req) => {
           subject,
           html,
           reply_to,
+          ...(attachments ? { attachments } : {}),
         }),
       });
 

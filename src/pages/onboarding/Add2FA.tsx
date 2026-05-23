@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
+import { toast } from "../../lib/toast";
 
 const steps = [
   { label: "Set up", path: "/set-up", active: false },
@@ -58,7 +59,7 @@ const Add2FA = () => {
     e.preventDefault();
 
     if (!igUsername.trim()) {
-      alert("Please enter your Instagram Username.");
+      toast.info("Please enter your Instagram Username.");
       return;
     }
 
@@ -131,7 +132,7 @@ const Add2FA = () => {
 
       setIsSuccess(true);
     } catch (error: any) {
-      alert(
+      toast.error(
         error.message ||
           "An error occurred saving your code. Please try again.",
       );

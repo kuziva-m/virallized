@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabase";
+import { toast } from "../lib/toast";
 import Settings from "./Settings";
 import {
   LineChart,
@@ -42,9 +43,24 @@ interface GrowthMetric {
   followers: number;
 }
 
+interface AgencyRecord {
+  id: string;
+  status: string;
+  discount_percent: number;
+  stripe_customer_id: string | null;
+  company_name: string | null;
+  email: string | null;
+}
+
 const AgencyDashboard = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
+  const [agency, setAgency] = useState<AgencyRecord | null>(null);
+  const [isSettingUpPayment, setIsSettingUpPayment] = useState(false);
+  const [paymentSetupSuccess] = useState(
+    searchParams.get("payment_setup") === "success",
+  );
   const [clients, setClients] = useState<AgencyClient[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -82,6 +98,36 @@ const AgencyDashboard = () => {
     }
   }, [selectedClient, activeTab]);
 
+  const handleSetupPayment = async () => {
+    setIsSettingUpPayment(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const jwt = sessionData?.session?.access_token;
+      if (!jwt) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-agency-setup`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${jwt}`,
+          },
+        },
+      );
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error || "Something went wrong. Please try again.");
+      }
+    } catch (err: any) {
+      toast.error("Failed to start payment setup: " + err.message);
+    } finally {
+      setIsSettingUpPayment(false);
+    }
+  };
+
   const fetchAgencyClients = async () => {
     setIsLoading(true);
 
@@ -92,6 +138,15 @@ const AgencyDashboard = () => {
       navigate("/login");
       return;
     }
+
+    // Fetch agency record first
+    const { data: agencyData } = await supabase
+      .from("agencies")
+      .select("id, status, discount_percent, stripe_customer_id, company_name, email")
+      .eq("user_id", user.id)
+      .single();
+
+    setAgency(agencyData ?? null);
 
     const { data, error } = await supabase
       .from("clients")
@@ -142,11 +197,31 @@ const AgencyDashboard = () => {
     setIsChartLoading(false);
   };
 
+  const handleCancelClient = async (client: AgencyClient) => {
+    if (!agency?.id) return;
+    const confirmed = window.confirm(
+      `Cancel @${client.ig_handle}? Their subscription will end at the current billing period.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase.functions.invoke("agency-billing", {
+        body: { action: "remove_client", agencyId: agency.id, clientId: client.id },
+      });
+      if (error) throw new Error(error.message);
+      await supabase.from("clients").update({ status: "cancelled" }).eq("id", client.id);
+      if (selectedClient?.id === client.id) setSelectedClient(null);
+      fetchAgencyClients();
+    } catch (err: any) {
+      toast.error("Failed to cancel client: " + err.message);
+    }
+  };
+
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newClientForm.payment_authorized) {
-      alert("You must authorize payment to add a new client.");
+      toast.info("You must authorize payment to add a new client.");
       return;
     }
 
@@ -202,24 +277,45 @@ const AgencyDashboard = () => {
     }
 
     try {
-      const { error } = await supabase.from("clients").insert([
-        {
-          ig_handle: cleanHandle,
-          full_name: cleanHandle,
-          ig_password: newClientForm.ig_password,
-          two_factor_code: newClientForm.two_factor_code,
-          plan: newClientForm.plan,
-          targets: newClientForm.initial_targets,
-          agency_notes: newClientForm.notes,
-          payment_authorized: newClientForm.payment_authorized,
-          agency_id: user.id,
-          starting_followers: realFollowers, // 👈 PASS THE REAL NUMBER TO THE DB
-        },
-      ]);
+      const { data: insertData, error } = await supabase
+        .from("clients")
+        .insert([
+          {
+            ig_handle: cleanHandle,
+            full_name: cleanHandle,
+            ig_password: newClientForm.ig_password,
+            two_factor_code: newClientForm.two_factor_code,
+            plan: newClientForm.plan,
+            targets: newClientForm.initial_targets,
+            agency_notes: newClientForm.notes,
+            payment_authorized: newClientForm.payment_authorized,
+            agency_id: user.id,
+            starting_followers: realFollowers,
+          },
+        ])
+        .select("id")
+        .single();
 
       if (error) throw error;
 
-      alert(
+      // Create Stripe subscription for this client seat via agency-billing
+      if (newClientForm.payment_authorized && insertData?.id && agency?.id) {
+        try {
+          const { error: billingError } = await supabase.functions.invoke("agency-billing", {
+            body: {
+              action: "add_client",
+              agencyId: agency.id,
+              clientId: insertData.id,
+              plan: newClientForm.plan,
+            },
+          });
+          if (billingError) console.error("Billing setup failed:", billingError.message);
+        } catch (subErr) {
+          console.error("Failed to create subscription:", subErr);
+        }
+      }
+
+      toast.success(
         `Successfully added @${cleanHandle} to your agency roster! Our team will begin setup.`,
       );
 
@@ -244,7 +340,7 @@ const AgencyDashboard = () => {
       });
       fetchAgencyClients();
     } catch (err: any) {
-      alert("Failed to add client: " + err.message);
+      toast.error("Failed to add client: " + err.message);
     } finally {
       setIsAdding(false);
     }
@@ -323,6 +419,76 @@ const AgencyDashboard = () => {
           <p className="text-slate-500 font-bold tracking-widest text-xs uppercase">
             Loading Agency Hub
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Agency application is pending approval
+  if (!agency || agency.status === "pending") {
+    return (
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center font-sans p-6">
+        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl p-10 max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-amber-50 border border-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+            ⏳
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 mb-3">
+            Application Under Review
+          </h2>
+          <p className="text-slate-500 font-medium text-sm leading-relaxed mb-8">
+            Your agency application has been received. Our team will review it
+            and email you with your approved dashboard access and pricing
+            shortly.
+          </p>
+          <button
+            onClick={handleLogout}
+            className="text-xs font-bold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 px-4 py-2 rounded-lg transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Agency approved but no payment method set up yet
+  if (agency.status === "approved" && !agency.stripe_customer_id) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center font-sans p-6">
+        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl p-10 max-w-md w-full text-center">
+          <div className="h-1.5 w-full bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] rounded-full mb-8" />
+          <div className="w-20 h-20 bg-green-50 border border-green-100 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+            🎉
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 mb-3">
+            Welcome to the Agency Hub!
+          </h2>
+          <p className="text-slate-500 font-medium text-sm leading-relaxed mb-2">
+            Your account is approved with a{" "}
+            <strong className="text-slate-700">
+              {agency.discount_percent}% agency discount
+            </strong>
+            .
+          </p>
+          <p className="text-slate-500 font-medium text-sm leading-relaxed mb-8">
+            Set up your payment method once to activate billing. You only get
+            charged per client seat you authorize.
+          </p>
+          <button
+            onClick={handleSetupPayment}
+            disabled={isSettingUpPayment}
+            className="w-full bg-gradient-to-r from-[#ffae07] via-[#ff2429] to-[#f1078d] text-white py-4 rounded-xl font-black text-sm hover:opacity-90 transition-opacity shadow-lg shadow-[#ff2429]/20 disabled:opacity-50"
+          >
+            {isSettingUpPayment
+              ? "Redirecting to Stripe..."
+              : "Set Up Payment Method →"}
+          </button>
+          <button
+            onClick={handleLogout}
+            className="mt-4 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors"
+          >
+            Sign out
+          </button>
         </div>
       </div>
     );
@@ -579,6 +745,20 @@ const AgencyDashboard = () => {
       </header>
 
       <main className="container mx-auto px-6 max-w-7xl mt-12">
+        {paymentSetupSuccess && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+            <span className="text-2xl">✅</span>
+            <div>
+              <p className="font-black text-green-800 text-sm">
+                Payment method set up successfully!
+              </p>
+              <p className="text-green-600 text-xs font-medium">
+                You can now add client accounts and authorize billing per seat.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -688,9 +868,20 @@ const AgencyDashboard = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900">
-                        Manage →
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button className="bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900">
+                          Manage →
+                        </button>
+                        {client.status !== "cancelled" && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCancelClient(client); }}
+                            className="bg-white border border-red-200 hover:border-red-400 text-red-400 hover:text-red-600 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
+                            title="Cancel subscription"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
